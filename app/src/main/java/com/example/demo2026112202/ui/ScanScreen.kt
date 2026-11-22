@@ -20,16 +20,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -94,7 +89,7 @@ fun ScanScreen(
 @Composable
 private fun HeaderRow(state: ScanUiState) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Filled.Wifi, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Text("📶", fontSize = 24.sp)
         Spacer(Modifier.width(8.dp))
         Column {
             Text("NetMap 扫描器", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -187,7 +182,7 @@ private fun ActionCard(
                 enabled = !state.isScanning && hasLocationPermission,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(Icons.Filled.Refresh, contentDescription = null)
+                Text("🔄")
                 Spacer(Modifier.width(8.dp))
                 Text(if (state.isScanning) "扫描中…" else "开始扫描局域网")
             }
