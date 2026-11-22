@@ -23,6 +23,7 @@ Thumbs.db
 # Keystore（签名密钥绝不入库）
 *.jks
 *.keystore
+keystore.properties
 
 # 工具数据
 /.codebuddy/
