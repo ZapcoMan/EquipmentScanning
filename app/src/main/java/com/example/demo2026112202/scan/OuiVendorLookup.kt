@@ -113,7 +113,15 @@ object OuiVendorLookup {
         Triple("2857BE", "Hikvision(海康)", VendorCategory.CAMERA),
         Triple("0018E7", "Hikvision(海康)", VendorCategory.CAMERA),
         Triple("9C1416", "Hikvision(海康)", VendorCategory.CAMERA),
+        Triple("640CE9", "Hikvision(海康)", VendorCategory.CAMERA),
+        Triple("BCAD28", "Hikvision(海康)", VendorCategory.CAMERA),
         Triple("3CADC0", "Dahua(大华)", VendorCategory.CAMERA),
+        Triple("4C11BF", "Dahua(大华)", VendorCategory.CAMERA),
+        Triple("38AF7C", "Dahua(大华)", VendorCategory.CAMERA),
+        Triple("50FA23", "Ezviz(萤石)", VendorCategory.CAMERA),
+        Triple("2C5A5F", "Wyze", VendorCategory.CAMERA),
+        Triple("180C12", "Reolink", VendorCategory.CAMERA),
+        Triple("288A1D", "Yi(小蚁)", VendorCategory.CAMERA),
 
         // —— 手机 / 平板 ——
         Triple("5C0A5B", "Samsung", VendorCategory.PHONE),
