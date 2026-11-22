@@ -45,6 +45,9 @@ jobs:
             sed -i 's/getByName("release")/getByName("debug")/' app/build.gradle.kts
           fi
 
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
       - name: Build release APK
         run: ./gradlew assembleRelease --no-daemon
 
