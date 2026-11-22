@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetMap 扫描器 — 安卓局域网设备发现工具</title>
+<meta name="description" content="无需 root 的安卓局域网扫描器：发现 WiFi 下所有设备，识别 IP / MAC / 厂商 / 端口 / 设备类型，对标 Nmap 核心能力。">
+<style>
+  :root{
+    --bg:#0b1020; --bg2:#121a33; --card:#161f3d; --line:#243056;
+    --txt:#e8ecf6; --muted:#9aa6c8; --acc:#4f8cff; --acc2:#22d3ee; --ok:#34d399; --warn:#fbbf24;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,sans-serif;
+    background:radial-gradient(1200px 600px at 80% -10%,#1b2752 0,transparent 60%),var(--bg);
+    color:var(--txt);line-height:1.65;-webkit-font-smoothing:antialiased}
+  a{color:var(--acc2);text-decoration:none}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  /* nav */
+  nav{position:sticky;top:0;z-index:10;backdrop-filter:blur(10px);background:rgba(11,16,32,.78);border-bottom:1px solid var(--line)}
+  nav .wrap{display:flex;align-items:center;gap:14px;height:60px}
+  .logo{font-weight:800;font-size:18px;letter-spacing:.5px;display:flex;align-items:center;gap:8px}
+  .logo span{color:var(--acc)}
+  .badge{font-size:12px;padding:3px 9px;border-radius:999px;background:#1c2a55;color:var(--acc2);border:1px solid #2a3a6e}
+  nav .right{margin-left:auto;display:flex;gap:16px;align-items:center}
+  nav .right a{font-size:14px;color:var(--muted)}
+  /* hero */
+  header.hero{padding:78px 0 50px;text-align:center}
+  .hero h1{font-size:clamp(30px,5vw,52px);line-height:1.15;font-weight:800;margin-bottom:18px}
+  .hero h1 b{background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero p.sub{font-size:clamp(15px,2vw,19px);color:var(--muted);max-width:680px;margin:0 auto 28px}
+  .cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:13px 22px;border-radius:10px;font-weight:600;font-size:15px;border:1px solid transparent;transition:.2s}
+  .btn.primary{background:linear-gradient(90deg,var(--acc),var(--acc2));color:#06122a}
+  .btn.primary:hover{filter:brightness(1.08);transform:translateY(-1px)}
+  .btn.ghost{background:transparent;border-color:var(--line);color:var(--txt)}
+  .btn.ghost:hover{border-color:var(--acc)}
+  .pillrow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:26px}
+  .pill{font-size:13px;color:var(--muted);padding:6px 13px;border:1px solid var(--line);border-radius:999px;background:var(--bg2)}
+  /* section */
+  section{padding:54px 0}
+  h2.sec{font-size:26px;font-weight:800;margin-bottom:8px}
+  p.secdesc{color:var(--muted);margin-bottom:28px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .card .ic{font-size:26px;margin-bottom:10px}
+  .card h3{font-size:17px;margin-bottom:6px}
+  .card p{color:var(--muted);font-size:14px}
+  /* compare */
+  .cmp{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .cmp th,.cmp td{padding:13px 16px;text-align:left;border-bottom:1px solid var(--line);font-size:14px}
+  .cmp th{background:#101a38;color:var(--muted);font-weight:600}
+  .cmp td:first-child{font-weight:600}
+  .yes{color:var(--ok)} .no{color:var(--warn)}
+  /* perms */
+  .perms li{list-style:none;padding:10px 0;border-bottom:1px dashed var(--line);color:var(--muted);font-size:14px}
+  .perms li:last-child{border:none}
+  .perms code{color:var(--acc2);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
+  .note{background:#1a1230;border:1px solid #3a2152;border-radius:12px;padding:18px 20px;color:#e6d6ff;font-size:14px;margin-top:20px}
+  .note b{color:#c4b5fd}
+  footer{border-top:1px solid var(--line);padding:30px 0;color:var(--muted);font-size:13px;text-align:center}
+  .kv{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+  @media(max-width:560px){nav .right a:not(.gh){display:none}}
+</style>
+</head>
+<body>
+<nav>
+  <div class="wrap">
+    <div class="logo">📶 Net<span>Map</span></div>
+    <span class="badge">v1.0.0</span>
+    <div class="right">
+      <a href="#features">功能</a>
+      <a href="#compare">对比</a>
+      <a href="#permissions">权限</a>
+      <a href="#install">安装</a>
+      <a class="gh" href="https://github.com/" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <h1>扫遍你 WiFi 下的<b>每一台设备</b></h1>
+    <p class="sub">NetMap 是一款无需 root 的安卓局域网扫描器，发现同一 WiFi 下所有联网设备，识别 IP、MAC、厂商、开放端口与设备类型——对标 Nmap 的核心能力，装在口袋里。</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/OWNER/REPO/releases/latest" target="_blank" rel="noopener">⬇ 下载 APK</a>
+      <a class="btn ghost" href="#features">查看功能</a>
+    </div>
+    <div class="pillrow">
+      <span class="pill">无需 root</span>
+      <span class="pill">设备发现</span>
+      <span class="pill">端口扫描</span>
+      <span class="pill">厂商识别</span>
+      <span class="pill">mDNS / Bonjour</span>
+      <span class="pill">设备类型推断</span>
+    </div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <h2 class="sec">核心能力</h2>
+    <p class="secdesc">把 Nmap 式的局域网侦查能力，做成普通安卓手机能直接用的 App。</p>
+    <div class="grid">
+      <div class="card"><div class="ic">📡</div><h3>主机发现</h3><p>子网内并发 ICMP + TCP 探测，即使禁 ping 的设备也能被发现。</p></div>
+      <div class="card"><div class="ic">🔢</div><h3>IP / MAC / 厂商</h3><p>读取 ARP 表获取 MAC，按 OUI 前缀识别网卡厂商（路由器/IoT/手机…）。</p></div>
+      <div class="card"><div class="ic">🔌</div><h3>端口扫描</h3><p>TCP connect 扫描 100+ 常见端口并标注服务（HTTP、SSH、RTSP、RDP、SMB…）。</p></div>
+      <div class="card"><div class="ic">🔊</div><h3>mDNS 多播发现</h3><p>枚举 AirPlay / GoogleCast / IPP / SMB / SSH 等服务，发现投屏、打印机、音箱。</p></div>
+      <div class="card"><div class="ic">🏷️</div><h3>设备类型推断</h3><p>综合端口、mDNS、OUI 三路线索，推断路由器/IoT/打印机/摄像头/手机等类型。</p></div>
+      <div class="card"><div class="ic">📶</div><h3>WiFi 信息</h3><p>展示 SSID、本机 IP、网关、子网、信号强度、信道与链路速率。</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="compare">
+  <div class="wrap">
+    <h2 class="sec">与 Nmap 的关系</h2>
+    <p class="secdesc">Nmap 没有官方安卓原生版，其 SYN 半开扫描 / OS 指纹依赖 raw socket，必须 root。NetMap 在普通设备上提供力所能及的核心能力。</p>
+    <table class="cmp">
+      <thead><tr><th>能力</th><th>NetMap（无 root）</th><th>Nmap 完整版（需 root）</th></tr></thead>
+      <tbody>
+        <tr><td>主机发现</td><td class="yes">✓ ICMP + TCP</td><td class="yes">✓ 多种</td></tr>
+        <tr><td>端口扫描</td><td class="yes">✓ TCP connect</td><td class="yes">✓ SYN/UDP/…</td></tr>
+        <tr><td>MAC / 厂商</td><td class="yes">✓ ARP + OUI</td><td class="yes">✓</td></tr>
+        <tr><td>mDNS / 服务发现</td><td class="yes">✓</td><td class="yes">✓（-sV）</td></tr>
+        <tr><td>SYN 半开扫描</td><td class="no">✗ 需 root</td><td class="yes">✓</td></tr>
+        <tr><td>OS 指纹识别</td><td class="no">✗ 需 raw socket</td><td class="yes">✓（-O）</td></tr>
+        <tr><td>运行环境</td><td class="yes">✓ 原生安卓 App</td><td class="no">Termux / 需 root</td></tr>
+      </tbody>
+    </table>
+    <div class="note"><b>诚实说明：</b>Android 10+ 出于隐私，普通应用读不到邻居设备的真实 MAC（ARP 表受限、MAC 随机化），本机 MAC 也会被系统随机化。这是系统策略，非 App 缺陷。设备类型基于端口 / mDNS / OUI 综合推断，非 OS 指纹。</div>
+  </div>
+</section>
+
+<section id="permissions">
+  <div class="wrap">
+    <h2 class="sec">所需权限</h2>
+    <p class="secdesc">均为扫描所必需，运行时仅需授予“精确位置”一项。</p>
+    <ul class="perms">
+      <li><code>ACCESS_FINE_LOCATION</code> — Android 9+ 读取 WiFi 信息（SSID/BSSID）必需</li>
+      <li><code>ACCESS_WIFI_STATE</code> / <code>ACCESS_NETWORK_STATE</code> — 读取连接与子网信息</li>
+      <li><code>CHANGE_WIFI_MULTICAST_STATE</code> — mDNS 多播发现</li>
+      <li><code>INTERNET</code> — TCP 端口探测</li>
+    </ul>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2 class="sec">下载与安装</h2>
+    <p class="secdesc">下载 release APK 后直接安装，首次运行授予定位权限即可。</p>
+    <div class="cta" style="justify-content:flex-start">
+      <a class="btn primary" href="https://github.com/OWNER/REPO/releases/latest" target="_blank" rel="noopener">⬇ 获取最新 APK</a>
+      <a class="btn ghost" href="https://github.com/OWNER/REPO" target="_blank" rel="noopener">查看源码</a>
+    </div>
+    <div class="note" style="margin-top:22px"><b>系统要求：</b>Android 8.1（API 27）及以上。若浏览器拦截安装，请在系统设置中允许“安装未知来源应用”。扫描结果实时展示在主界面列表中，点击设备卡片可展开端口与服务详情。</div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    NetMap 扫描器 · 开源于 GitHub · MIT License
+    <div class="kv">
+      <img alt="version" src="https://img.shields.io/badge/version-1.0.0-4f8cff">
+      <img alt="platform" src="https://img.shields.io/badge/platform-Android%208.1%2B-22d3ee">
+      <img alt="license" src="https://img.shields.io/badge/license-MIT-34d399">
+    </div>
+  </div>
+</footer>
+</body>
+</html>
