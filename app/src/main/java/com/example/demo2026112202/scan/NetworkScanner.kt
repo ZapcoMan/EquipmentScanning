@@ -7,8 +7,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.net.InetAddress
 
 /**
- * 扫描协调器：组合 WiFi 信息、主机发现、端口扫描、ARP 表、OUI、mDNS、类型推断，
- * 产出完整的 ScanReport。所有步骤并发执行，无需 root。
+ * 扫描协调器：组合 WiFi 信息、主机发现、ARP 表、OUI、mDNS、ONVIF、类型推断，
+ * 产出完整的 ScanReport。不扫端口，专注设备发现（尤其针孔/IP 摄像头）。无需 root。
  */
 class NetworkScanner(private val context: Context) {
 
@@ -17,7 +17,6 @@ class NetworkScanner(private val context: Context) {
         val warnings = mutableListOf<String>()
         val t0 = System.currentTimeMillis()
 
-        // 1. WiFi 信息
         val wifi = WifiInfoProvider(context).current()
         val net = wifi.networkAddress
         val bcast = wifi.broadcastAddress
@@ -30,36 +29,33 @@ class NetworkScanner(private val context: Context) {
             warnings += "本机 MAC 被系统随机化（Android 11+ 隐私策略），属正常现象。"
         }
 
-        // 2. 并发：主机发现 + mDNS 发现 + 读 ARP
-        onProgress("正在发现局域网主机…", 0, wifi.hostCount.coerceAtLeast(1))
-        val (hosts, mdnsMap, arpMap) = coroutineScope {
-            val hostsDeferred = async {
-                HostDiscovery.discoverHosts(net, bcast, myIp)
-            }
-            val mdnsDeferred = async {
-                MdnsDiscovery.discover(context)
-            }
+        // 并发：主机发现 + mDNS + ONVIF + 读 ARP
+        onProgress("正在发现局域网设备…", 0, wifi.hostCount.coerceAtLeast(1))
+        val (hosts, mdnsMap, arpMap, onvifMap) = coroutineScope {
+            val hostsDeferred = async { HostDiscovery.discoverHosts(net, bcast, myIp) }
+            val mdnsDeferred = async { MdnsDiscovery.discover(context) }
+            val onvifDeferred = async { OnvifDiscovery.discover(context) }
             val arpDeferred = async { ArpTableReader.read() }
-            Triple(hostsDeferred.await(), mdnsDeferred.await(), arpDeferred.await())
+            Quad(hostsDeferred.await(), mdnsDeferred.await(), arpDeferred.await(), onvifDeferred.await())
         }
 
         if (arpMap.isEmpty()) {
             warnings += "ARP 表读取为空：Android 10+ 普通应用读取受限，未通信过的设备 MAC 可能缺失。"
         }
 
-        // 把网关也纳入（即便没 ping 通也是关键设备）
+        // 汇总所有发现到的 IP（ICMP + 网关 + mDNS + ONVIF）
         val allIps = LinkedHashSet<String>()
         hosts.forEach { allIps.add(it.ip) }
         wifi.gatewayIp?.let { allIps.add(it) }
         mdnsMap.keys.forEach { allIps.add(it) }
+        onvifMap.keys.forEach { allIps.add(it) }
 
-        // 3. 对每个 IP 并发：查 MAC/OUI、扫端口、反查主机名、合并 mDNS、推断类型
         val total = allIps.size.coerceAtLeast(1)
         var done = 0
         val devices = coroutineScope {
             allIps.map { ip ->
                 async {
-                    val device = analyze(ip, hosts, mdnsMap, arpMap)
+                    val device = analyze(ip, hosts, mdnsMap, arpMap, onvifMap)
                     done++
                     onProgress("正在分析设备 $done/$total", done, total)
                     device
@@ -67,9 +63,13 @@ class NetworkScanner(private val context: Context) {
             }.awaitAllSafe()
         }
 
+        // 摄像头/ONVIF 设备优先排在前面
         val sorted = devices.filterNotNull()
-            .sortedWith(compareByDescending<DeviceInfo> { it.openPorts.size }
-                .thenBy { it.ip })
+            .sortedWith(
+                compareByDescending<DeviceInfo> {
+                    it.deviceType.contains("摄像头") || it.onvifTypes.isNotEmpty()
+                }.thenByDescending { it.sources.size }.thenBy { it.ip }
+            )
 
         return ScanReport(wifi, sorted, System.currentTimeMillis() - t0, warnings)
     }
@@ -78,27 +78,28 @@ class NetworkScanner(private val context: Context) {
         ip: String,
         hosts: List<HostHit>,
         mdns: Map<String, MdnsInfo>,
-        arp: Map<String, String>
+        arp: Map<String, String>,
+        onvif: Map<String, OnvifDevice>
     ): DeviceInfo {
         val hit = hosts.firstOrNull { it.ip == ip }
         val mac = arp[ip] ?: hit?.let { arp[it.ip] }
         val vendor = OuiVendorLookup.lookup(mac)
-
-        // 端口扫描（存活主机或网关才扫，否则空）
-        val ports = if (hit != null || isLikelyAlive(ip)) {
-            HostDiscovery.scanPorts(ip)
-        } else emptyList()
-
         val mdnsInfo = mdns[ip]
-        val hostname = mdnsInfo?.hostnames?.firstOrNull()
-            ?: reverseDns(ip)
+        val onvifInfo = onvif[ip]
+        val hostname = mdnsInfo?.hostnames?.firstOrNull() ?: reverseDns(ip)
 
-        val type = DeviceTypeGuesser.guess(mac, vendor, hostname, mdnsInfo?.services?.toList() ?: emptyList(), ports)
+        val type = DeviceTypeGuesser.guess(
+            mac, vendor, hostname,
+            mdnsInfo?.services?.toList() ?: emptyList(),
+            onvifInfo?.types ?: emptySet(),
+            onvifInfo?.scopes ?: emptySet()
+        )
 
         val sources = mutableSetOf<String>()
         if (hit != null) sources.add(hit.source)
         if (arp[ip] != null) sources.add("arp")
         if (mdnsInfo != null) sources.add("mdns")
+        if (onvifInfo != null) sources.add("onvif")
         if (sources.isEmpty()) sources.add("mdns-only")
 
         return DeviceInfo(
@@ -108,18 +109,12 @@ class NetworkScanner(private val context: Context) {
             hostname = hostname,
             deviceType = type.type,
             deviceTypeIcon = type.icon,
-            openPorts = ports,
             mdnsServices = mdnsInfo?.services?.toList() ?: emptyList(),
+            onvifTypes = onvifInfo?.types ?: emptySet(),
+            onvifScopes = onvifInfo?.scopes ?: emptySet(),
             responseTimeMs = hit?.rttMs,
             sources = sources
         )
-    }
-
-    /** 网关等未在 hosts 列表里的 IP，快速判断是否存活。 */
-    private suspend fun isLikelyAlive(ip: String): Boolean {
-        return withTimeoutOrNull(600L) {
-            try { InetAddress.getByName(ip).isReachable(600) } catch (_: Exception) { false }
-        } ?: false
     }
 
     /** 反向 DNS 查询主机名，带超时避免阻塞。 */
@@ -129,9 +124,11 @@ class NetworkScanner(private val context: Context) {
                 val h = InetAddress.getByName(ip).hostName
                 if (h != null && h != ip) h else null
             } catch (_: Exception) { null }
-        }
+        } ?: null
     }
 }
+
+private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 
 /** awaitAll 的安全版本：单个失败返回 null 而非整体抛出。 */
 private suspend fun <T> List<kotlinx.coroutines.Deferred<T?>>.awaitAllSafe(): List<T?> =

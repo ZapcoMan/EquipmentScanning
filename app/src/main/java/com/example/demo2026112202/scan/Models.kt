@@ -26,20 +26,15 @@ data class DeviceInfo(
     val hostname: String?,
     val deviceType: String,
     val deviceTypeIcon: String,
-    val openPorts: List<PortInfo>,
     val mdnsServices: List<String>,
+    val onvifTypes: Set<String>,
+    val onvifScopes: Set<String>,
     val responseTimeMs: Long?,
     val sources: Set<String>
 ) {
     val discoveryNote: String
         get() = sources.joinToString(", ")
 }
-
-data class PortInfo(
-    val port: Int,
-    val service: String,
-    val state: String = "open"
-)
 
 /** 扫描整体结果。 */
 data class ScanReport(

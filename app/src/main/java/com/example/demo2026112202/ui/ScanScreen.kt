@@ -226,6 +226,7 @@ private fun StatBar(state: ScanUiState) {
 private fun DeviceCard(device: DeviceInfo) {
     val expanded = remember { mutableStateMapOf<String, Boolean>() }
     val isOpen = expanded[device.ip] == true
+    val isCamera = device.deviceType.contains("摄像头") || device.onvifTypes.isNotEmpty()
 
     ElevatedCard(
         modifier = Modifier.fillMaxWidth().clickable { expanded[device.ip] = !isOpen }
@@ -243,7 +244,14 @@ private fun DeviceCard(device: DeviceInfo) {
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("${device.openPorts.size} 端口", style = MaterialTheme.typography.bodySmall)
+                    if (isCamera) {
+                        Text(
+                            "⚠ 摄像头",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                     device.responseTimeMs?.let {
                         Text("$it ms", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                     }
@@ -264,39 +272,42 @@ private fun DeviceCard(device: DeviceInfo) {
                     Tag(it)
                 }
             }
-            device.sources.let {
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    "来源：${device.discoveryNote}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "来源：${device.discoveryNote}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
             AnimatedVisibility(visible = isOpen, enter = expandVertically(), exit = shrinkVertically()) {
                 Column(Modifier.padding(top = 10.dp)) {
                     HorizontalDivider()
                     Spacer(Modifier.height(8.dp))
-                    if (device.openPorts.isEmpty()) {
-                        Text("无开放端口", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                    } else {
-                        Text("开放端口", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Spacer(Modifier.height(4.dp))
+                    if (device.onvifTypes.isNotEmpty()) {
+                        Text("ONVIF 类型", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            device.openPorts.forEach { p ->
-                                Tag("${p.port} ${p.service}")
-                            }
+                            device.onvifTypes.take(10).forEach { Tag(it) }
                         }
+                        Spacer(Modifier.height(6.dp))
+                    }
+                    if (device.onvifScopes.isNotEmpty()) {
+                        Text("ONVIF Scopes", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        device.onvifScopes.take(6).forEach {
+                            Text("• $it", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                        }
+                        Spacer(Modifier.height(6.dp))
                     }
                     if (device.mdnsServices.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
                         Text("mDNS 服务", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         device.mdnsServices.take(6).forEach {
                             Text("• $it", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
                         }
+                    }
+                    if (device.onvifTypes.isEmpty() && device.mdnsServices.isEmpty() && device.onvifScopes.isEmpty()) {
+                        Text("无额外服务信息", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                     }
                 }
             }
