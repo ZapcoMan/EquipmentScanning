@@ -36,8 +36,11 @@ class WifiInfoProvider(private val context: Context) {
         val broadcast = if (dhcp.ipAddress != 0 && dhcp.netmask != 0)
             intToIp(dhcp.ipAddress or dhcp.netmask.inv()) else null
 
-        val hostCount = if (dhcp.netmask != 0)
-            (dhcp.netmask.inv() and 0xFFFFFFFF.toInt() - 1).coerceAtLeast(0) else 0
+        val hostCount = if (dhcp.netmask != 0) {
+            val maskBits = dhcp.netmask.countOneBits()
+            // 主机数 = 2^(32-掩码位数) - 2（去掉网络地址与广播地址）
+            ((1 shl (32 - maskBits)) - 2).coerceAtLeast(0)
+        } else 0
 
         val freq = conn.frequency
         val channel = freqToChannel(freq)
