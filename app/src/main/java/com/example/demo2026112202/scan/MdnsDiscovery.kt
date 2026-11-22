@@ -74,12 +74,13 @@ object MdnsDiscovery {
                         try {
                             socket.receive(pkt)
                             val srcIp = pkt.address.hostAddress ?: continue
-                            val info = parseResponse(pkt.data, pkt.length, srcIp)
-                            info.hostnames.forEach { byIp(srcIp).hostnames.add(it) }
-                            info.services.forEach { byIp(srcIp).services.add(it) }
-                            info.ports.forEach { byIp(srcIp).ports.add(it) }
-                            info.aRecords.forEach { (host, ip) ->
-                                byIp(ip).hostnames.add(host)
+                            val parsed = parseResponse(pkt.data, pkt.length, srcIp)
+                            val info = byIp.getOrPut(srcIp) { MutableMdnsInfo() }
+                            parsed.hostnames.forEach { info.hostnames.add(it) }
+                            parsed.services.forEach { info.services.add(it) }
+                            parsed.ports.forEach { info.ports.add(it) }
+                            parsed.aRecords.forEach { (host, ip) ->
+                                byIp.getOrPut(ip) { MutableMdnsInfo() }.hostnames.add(host)
                             }
                         } catch (_: java.net.SocketTimeoutException) {
                             break
@@ -96,34 +97,26 @@ object MdnsDiscovery {
             byIp.mapValues { it.value.toInfo(it.key) }
         }
 
-    private fun byIp(map: MutableMap<String, MutableMdnsInfo>, ip: String) =
-        map.getOrPut(ip) { MutableMdnsInfo() }
-
-    // —— DNS 报文构造与解析 ——
+    // —— DNS 报文构造与解析（纯字节偏移，避免流位置不同步） ——
 
     private fun buildQuery(types: List<String>): ByteArray {
         val out = java.io.ByteArrayOutputStream()
         val dos = java.io.DataOutputStream(out)
-        // Header: ID=0, Flags=0(标准查询), QDCOUNT=n, 其余 0
-        dos.writeShort(0)
-        dos.writeShort(0x0000)
-        dos.writeShort(types.size)
+        dos.writeShort(0)        // ID
+        dos.writeShort(0x0000)   // Flags: 标准查询
+        dos.writeShort(types.size) // QDCOUNT
         dos.writeShort(0); dos.writeShort(0); dos.writeShort(0)
         for (t in types) {
-            writeName(dos, t)
+            for (label in t.split(".")) {
+                val bytes = label.toByteArray(Charsets.US_ASCII)
+                dos.writeByte(bytes.size)
+                dos.write(bytes)
+            }
+            dos.writeByte(0)
             dos.writeShort(12) // TYPE = PTR
             dos.writeShort(1)  // CLASS = IN
         }
         return out.toByteArray()
-    }
-
-    private fun writeName(dos: java.io.DataOutputStream, name: String) {
-        for (label in name.split(".")) {
-            val bytes = label.toByteArray(Charsets.US_ASCII)
-            dos.writeByte(bytes.size)
-            dos.write(bytes)
-        }
-        dos.writeByte(0)
     }
 
     private data class Parsed(
@@ -135,115 +128,102 @@ object MdnsDiscovery {
 
     private fun parseResponse(data: ByteArray, len: Int, srcIp: String): Parsed {
         if (len < 12) return Parsed(emptySet(), emptySet(), emptySet(), emptyList())
-        val dis = java.io.DataInputStream(java.io.ByteArrayInputStream(data, 0, len))
-        dis.readShort() // ID
-        dis.readShort() // Flags
-        val qd = dis.readUnsignedShort()
-        val an = dis.readUnsignedShort()
-        val ns = dis.readUnsignedShort()
-        val ar = dis.readUnsignedShort()
+        var p = 0
+        fun u16(): Int {
+            val v = ((data[p].toInt() and 0xFF) shl 8) or (data[p + 1].toInt() and 0xFF)
+            p += 2; return v
+        }
+        p = 2; u16()          // Flags
+        val qd = u16(); val an = u16(); val ns = u16(); val ar = u16()
 
         // 跳过问题段
         repeat(qd) {
-            readName(dis, data)
-            dis.readShort(); dis.readShort()
+            val consumed = readNameConsumed(data, p, len)
+            p += consumed
+            p += 4 // TYPE + CLASS
         }
 
         val hostnames = mutableSetOf<String>()
         val services = mutableSetOf<String>()
         val ports = mutableSetOf<Int>()
         val aRecords = mutableListOf<Pair<String, String>>()
-
-        val totalRecords = an + ns + ar
-        repeat(totalRecords) {
-            val name = readName(dis, data)
-            val type = dis.readUnsignedShort()
-            val clazz = dis.readUnsignedShort()
-            dis.readInt() // TTL
-            val rdlen = dis.readUnsignedShort()
-            val rStart = dis.bytesRead()
+        val total = an + ns + ar
+        repeat(total) {
+            val (name, c1) = readName(data, p, len)
+            p += c1
+            val type = u16(); u16() // CLASS
+            p += 4                  // TTL
+            val rdlen = u16()
+            val rdataStart = p
             when (type) {
-                1 -> { // A
-                    if (rdlen == 4) {
-                        val ip = "${dis.readUnsignedByte()}.${dis.readUnsignedByte()}." +
-                                "${dis.readUnsignedByte()}.${dis.readUnsignedByte()}"
-                        aRecords.add(name to ip)
-                        hostnames.add(name)
-                    } else skip(dis, rdlen)
+                1 -> if (rdlen == 4) { // A
+                    val ip = "${data[p].toInt() and 0xFF}.${data[p + 1].toInt() and 0xFF}." +
+                            "${data[p + 2].toInt() and 0xFF}.${data[p + 3].toInt() and 0xFF}"
+                    aRecords.add(name to ip)
+                    hostnames.add(name)
                 }
-                28 -> skip(dis, rdlen) // AAAA
-                12 -> { // PTR: rdata 是 instance name
-                    val target = readName(dis, data, rStart)
-                    services.add(name)
-                    services.add(target)
+                28 -> {} // AAAA，忽略
+                12 -> {  // PTR：rdata 是实例名
+                    val (target, _) = readName(data, p, len)
+                    services.add(name); services.add(target)
                 }
-                33 -> { // SRV: priority(2) weight(2) port(2) target
-                    dis.readShort(); dis.readShort()
-                    val port = dis.readUnsignedShort()
-                    val target = readName(dis, data, rStart)
-                    ports.add(port)
-                    hostnames.add(target)
+                33 -> {  // SRV：priority(2) weight(2) port(2) target
+                    if (rdlen >= 7) {
+                        val port = ((data[p + 4].toInt() and 0xFF) shl 8) or (data[p + 5].toInt() and 0xFF)
+                        val (target, _) = readName(data, p + 6, len)
+                        ports.add(port); hostnames.add(target)
+                    }
                 }
-                16 -> skip(dis, rdlen) // TXT
-                else -> skip(dis, rdlen)
+                16 -> {} // TXT，忽略
+                else -> {}
             }
-            // 校准读取位置（处理 readName 可能多读/少读的情况）
-            val consumed = dis.bytesRead() - rStart
-            if (consumed < rdlen) skip(dis, rdlen - consumed)
+            // 严格按 rdlen 推进，杜绝偏移累积错误
+            p = rdataStart + rdlen
         }
         if (hostnames.isEmpty() && services.isEmpty() && ports.isEmpty() && aRecords.isEmpty()) {
-            // 至少记录源 IP 有响应
             hostnames.add(srcIp)
         }
-        return Parsed(hostnames, services, ports, aRecords)
+        return Parsed(hostnames.toSet(), services.toSet(), ports.toSet(), aRecords)
     }
 
-    /** 读取 DNS 名字（含指针压缩）。limit 用于指针解析的起始边界。 */
-    private fun readName(
-        dis: java.io.DataInputStream,
-        data: ByteArray,
-        startFrom: Int = -1
-    ): String {
+    /** 读取 DNS 名字（含指针压缩），返回 (名字, 实际消耗字节数)。 */
+    private fun readName(data: ByteArray, start: Int, len: Int): Pair<String, Int> {
         val sb = StringBuilder()
-        var pos = if (startFrom >= 0) startFrom else (data.size - dis.available())
+        var pos = start
+        var consumed = -1
         var jumped = false
-        var jumpPos = 0
         var safety = 0
         while (true) {
             if (++safety > 256) break
-            val len = data[pos].toInt() and 0xFF
-            pos++
-            if (len == 0) {
-                if (jumped) pos = jumpPos
+            if (pos >= len) break
+            val b = data[pos].toInt() and 0xFF
+            if (b == 0) {
+                pos++
+                if (!jumped) consumed = pos - start
                 break
             }
-            if ((len and 0xC0) == 0xC0) {
-                // 指针
-                val ptr = ((len and 0x3F) shl 8) or (data[pos].toInt() and 0xFF)
-                pos++
+            if ((b and 0xC0) == 0xC0) {
+                if (pos + 1 >= len) break
                 if (!jumped) {
                     jumped = true
-                    jumpPos = pos
+                    consumed = (pos + 2) - start
                 }
-                pos = ptr
+                pos = ((b and 0x3F) shl 8) or (data[pos + 1].toInt() and 0xFF)
                 continue
             }
+            pos++
             if (sb.isNotEmpty()) sb.append('.')
-            for (i in 0 until len) {
+            val end = pos + b
+            while (pos < end && pos < len) {
                 sb.append((data[pos].toInt() and 0xFF).toChar())
                 pos++
             }
         }
-        // 同步 DataInputStream 的读取位置
-        // 简化处理：把 dis 跳到 pos（当从 data 数组读时）
-        return sb.toString()
+        if (consumed < 0) consumed = pos - start
+        return sb.toString() to consumed
     }
 
-    private fun skip(dis: java.io.DataInputStream, n: Int) {
-        var left = n
-        while (left > 0) left -= dis.skipBytes(left).toInt()
-    }
-
-    private fun java.io.DataInputStream.bytesRead(): Int =
-        data.size - available()
+    /** 仅返回消耗字节数的便捷版本。 */
+    private fun readNameConsumed(data: ByteArray, start: Int, len: Int): Int =
+        readName(data, start, len).second
 }
