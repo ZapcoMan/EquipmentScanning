@@ -227,6 +227,7 @@ private fun DeviceCard(device: DeviceInfo) {
     val expanded = remember { mutableStateMapOf<String, Boolean>() }
     val isOpen = expanded[device.ip] == true
     val isCamera = device.deviceType.contains("摄像头") || device.onvifTypes.isNotEmpty()
+    val isSuspicious = device.isSuspicious
 
     ElevatedCard(
         modifier = Modifier.fillMaxWidth().clickable { expanded[device.ip] = !isOpen }
@@ -244,9 +245,16 @@ private fun DeviceCard(device: DeviceInfo) {
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    if (isCamera) {
+                    if (isSuspicious) {
                         Text(
-                            "⚠ 摄像头",
+                            "⚠ 可疑设备",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold
+                        )
+                    } else if (isCamera) {
+                        Text(
+                            "📷 摄像头",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                             fontWeight = FontWeight.Bold
@@ -283,6 +291,18 @@ private fun DeviceCard(device: DeviceInfo) {
                 Column(Modifier.padding(top = 10.dp)) {
                     HorizontalDivider()
                     Spacer(Modifier.height(8.dp))
+                    if (device.isSuspicious) {
+                        Text(
+                            "可疑原因（评分 ${device.suspicionScore}）",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        device.suspicionReasons.forEach {
+                            Text("• $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        }
+                        Spacer(Modifier.height(6.dp))
+                    }
                     if (device.onvifTypes.isNotEmpty()) {
                         Text("ONVIF 类型", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         FlowRow(

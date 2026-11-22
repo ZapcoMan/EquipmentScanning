@@ -7,8 +7,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.net.InetAddress
 
 /**
- * 扫描协调器：组合 WiFi 信息、主机发现、ARP 表、OUI、mDNS、ONVIF、类型推断，
- * 产出完整的 ScanReport。不扫端口，专注设备发现（尤其针孔/IP 摄像头）。无需 root。
+ * 扫描协调器：组合 WiFi 信息、主机发现、ARP 表、OUI、mDNS、ONVIF、类型推断、可疑检测，
+ * 产出完整的 ScanReport。不扫端口，专注设备发现（尤其针孔/IP 摄像头与可疑设备）。无需 root。
  */
 class NetworkScanner(private val context: Context) {
 
@@ -29,7 +29,6 @@ class NetworkScanner(private val context: Context) {
             warnings += "本机 MAC 被系统随机化（Android 11+ 隐私策略），属正常现象。"
         }
 
-        // 并发：主机发现 + mDNS + ONVIF + 读 ARP
         onProgress("正在发现局域网设备…", 0, wifi.hostCount.coerceAtLeast(1))
         val (hosts, mdnsMap, arpMap, onvifMap) = coroutineScope {
             val hostsDeferred = async { HostDiscovery.discoverHosts(net, bcast, myIp) }
@@ -43,7 +42,6 @@ class NetworkScanner(private val context: Context) {
             warnings += "ARP 表读取为空：Android 10+ 普通应用读取受限，未通信过的设备 MAC 可能缺失。"
         }
 
-        // 汇总所有发现到的 IP（ICMP + 网关 + mDNS + ONVIF）
         val allIps = LinkedHashSet<String>()
         hosts.forEach { allIps.add(it.ip) }
         wifi.gatewayIp?.let { allIps.add(it) }
@@ -63,12 +61,14 @@ class NetworkScanner(private val context: Context) {
             }.awaitAllSafe()
         }
 
-        // 摄像头/ONVIF 设备优先排在前面
+        // 可疑设备优先，其次摄像头，再按可疑分数
         val sorted = devices.filterNotNull()
             .sortedWith(
-                compareByDescending<DeviceInfo> {
-                    it.deviceType.contains("摄像头") || it.onvifTypes.isNotEmpty()
-                }.thenByDescending { it.sources.size }.thenBy { it.ip }
+                compareByDescending<DeviceInfo> { it.isSuspicious }
+                    .thenByDescending { it.deviceType.contains("摄像头") || it.onvifTypes.isNotEmpty() }
+                    .thenByDescending { it.suspicionScore }
+                    .thenByDescending { it.sources.size }
+                    .thenBy { it.ip }
             )
 
         return ScanReport(wifi, sorted, System.currentTimeMillis() - t0, warnings)
@@ -95,6 +95,13 @@ class NetworkScanner(private val context: Context) {
             onvifInfo?.scopes ?: emptySet()
         )
 
+        val suspicion = SuspicionDetector.evaluate(
+            mac, vendor, hostname,
+            mdnsInfo?.services?.toList() ?: emptyList(),
+            onvifInfo?.types ?: emptySet(),
+            type.type
+        )
+
         val sources = mutableSetOf<String>()
         if (hit != null) sources.add(hit.source)
         if (arp[ip] != null) sources.add("arp")
@@ -113,7 +120,10 @@ class NetworkScanner(private val context: Context) {
             onvifTypes = onvifInfo?.types ?: emptySet(),
             onvifScopes = onvifInfo?.scopes ?: emptySet(),
             responseTimeMs = hit?.rttMs,
-            sources = sources
+            sources = sources,
+            suspicionScore = suspicion.score,
+            suspicionReasons = suspicion.reasons.map { "${it.factor}(+${it.score})" },
+            isSuspicious = suspicion.isSuspicious
         )
     }
 

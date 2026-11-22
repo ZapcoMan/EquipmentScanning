@@ -30,7 +30,10 @@ data class DeviceInfo(
     val onvifTypes: Set<String>,
     val onvifScopes: Set<String>,
     val responseTimeMs: Long?,
-    val sources: Set<String>
+    val sources: Set<String>,
+    val suspicionScore: Int,
+    val suspicionReasons: List<String>,
+    val isSuspicious: Boolean
 ) {
     val discoveryNote: String
         get() = sources.joinToString(", ")
