@@ -1,5 +1,13 @@
 # 更新日志
 
+## v1.0.2 — 2026-11-23
+
+最低版本要求提升至 Android 10（minSdk 29）；发布产物为 APK。
+
+### 改动
+- minSdk 27 → 29（Android 10），App 最低支持 Android 10
+- Release 产物为 `NetMap-v1.0.2.apk`
+
 ## v1.0.1 — 2026-11-23
 
 修复 v1.0.0 因 CI 配置问题（gradlew 在 Linux runner 缺执行位）无法成功发布的问题；产品功能与 v1.0.0 一致。
