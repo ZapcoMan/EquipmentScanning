@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+build/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+local.properties
+captures/
+.cxx/
+
+# Kotlin
+*.kotlin_metadata
+
+# Native
+*.so
+
+# Logs / OS
+*.log
+.DS_Store
+Thumbs.db
+
+# Keystore（签名密钥绝不入库）
+*.jks
+*.keystore
+
+# 工具数据
+/.codebuddy/

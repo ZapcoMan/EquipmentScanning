@@ -1,0 +1,89 @@
+package com.example.demo2026112202.scan
+
+import android.content.Context
+import android.net.wifi.WifiManager
+import android.text.format.Formatter
+
+/**
+ * 获取当前 WiFi 连接信息：SSID、本机 IP、网关、子网掩码、信号、信道等。
+ *
+ * 注意：Android 9+ 读取 SSID/BSSID 需要 ACCESS_FINE_LOCATION 运行时权限；
+ * Android 11+ 本机 MAC 会被系统随机化（返回 02:00:00:00:00:00），这是系统限制，非 bug。
+ */
+class WifiInfoProvider(private val context: Context) {
+
+    @Suppress("DEPRECATION", "OverrideDeprecated")
+    fun current(): WifiNetworkInfo {
+        val wifi = context.applicationContext
+            .getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            ?: return WifiNetworkInfo(
+                ssid = "未知",
+                bssid = null, myIp = null, myMac = null,
+                gatewayIp = null, subnetMask = null,
+                networkAddress = null, broadcastAddress = null,
+                hostCount = 0, signalDbm = 0, linkSpeedMbps = 0,
+                frequencyMhz = 0, channel = 0, connectionInfo = "未获取到 WifiManager"
+            )
+
+        val dhcp = wifi.dhcpInfo
+        val conn = wifi.connectionInfo
+
+        val myIp = intToIp(dhcp.ipAddress)
+        val mask = intToIp(dhcp.netmask)
+        val gateway = intToIp(dhcp.gateway)
+        val network = if (dhcp.ipAddress != 0 && dhcp.netmask != 0)
+            intToIp(dhcp.ipAddress and dhcp.netmask) else null
+        val broadcast = if (dhcp.ipAddress != 0 && dhcp.netmask != 0)
+            intToIp(dhcp.ipAddress or dhcp.netmask.inv()) else null
+
+        val hostCount = if (dhcp.netmask != 0)
+            (dhcp.netmask.inv() and 0xFFFFFFFF.toInt() - 1).coerceAtLeast(0) else 0
+
+        val freq = conn.frequency
+        val channel = freqToChannel(freq)
+        val rssi = conn.rssi
+        val link = conn.linkSpeed
+
+        val ssid = try { conn.ssid?.removeSurrounding("\"") ?: "<隐藏>" } catch (e: SecurityException) { "<需定位权限>" }
+        val bssid = try { conn.bssid } catch (e: SecurityException) { null }
+        val myMac = try { conn.macAddress } catch (e: SecurityException) { null }
+
+        // 老接口 Formatter.formatIpAddress 已废弃，但仍是把 int->IP 最简单的方式。
+        @Suppress("DEPRECATION")
+        val ipAlt = try { Formatter.formatIpAddress(dhcp.ipAddress) } catch (e: Exception) { myIp }
+
+        return WifiNetworkInfo(
+            ssid = ssid,
+            bssid = bssid,
+            myIp = ipAlt.ifBlank { myIp },
+            myMac = myMac,
+            gatewayIp = gateway,
+            subnetMask = mask,
+            networkAddress = network,
+            broadcastAddress = broadcast,
+            hostCount = hostCount,
+            signalDbm = rssi,
+            linkSpeedMbps = link,
+            frequencyMhz = freq,
+            channel = channel,
+            connectionInfo = buildString {
+                append("IP $ipAlt")
+                append("  网关 $gateway")
+                append("  掩码 $mask")
+                append("  子网 $network/$hostCount 台")
+            }
+        )
+    }
+
+    /** 把 Android 存成小端 int 的 IPv4 地址还原成点分十进制。 */
+    private fun intToIp(i: Int): String {
+        if (i == 0) return "0.0.0.0"
+        return "${i and 0xFF}.${(i shr 8) and 0xFF}.${(i shr 16) and 0xFF}.${(i shr 24) and 0xFF}"
+    }
+
+    private fun freqToChannel(freq: Int): Int = when {
+        freq in 2412..2484 -> if (freq == 2484) 14 else (freq - 2412) / 5 + 1
+        freq in 5160..5885 -> (freq - 5000) / 5
+        else -> 0
+    }
+}
