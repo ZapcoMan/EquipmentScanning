@@ -1,16 +1,26 @@
 package com.example.demo2026112202
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.demo2026112202.ui.ScanScreen
+import com.example.demo2026112202.ui.ScanViewModel
 import com.example.demo2026112202.ui.theme.Demo2026112202Theme
 
 class MainActivity : ComponentActivity() {
@@ -19,29 +29,30 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             Demo2026112202Theme {
+                val viewModel: ScanViewModel = viewModel()
+                val state by viewModel.state.collectAsState()
+
+                var hasLocation by remember { mutableStateOf(hasLocationPermission()) }
+                val permissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { granted -> hasLocation = granted }
+
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
+                    ScanScreen(
+                        state = state,
+                        hasLocationPermission = hasLocation,
+                        onScan = viewModel::scan,
+                        onRequestPermission = {
+                            permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        },
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
             }
         }
     }
-}
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    Demo2026112202Theme {
-        Greeting("Android")
-    }
+    private fun hasLocationPermission(): Boolean = ContextCompat.checkSelfPermission(
+        this, Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
 }
