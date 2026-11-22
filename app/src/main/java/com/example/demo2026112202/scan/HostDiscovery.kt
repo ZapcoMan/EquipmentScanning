@@ -8,15 +8,19 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Socket
 
 /** 主机发现的命中结果。 */
 data class HostHit(val ip: String, val rttMs: Long, val source: String)
 
 /**
- * 局域网主机发现（无需 root，不扫端口）。
+ * 局域网主机发现（无需 root，不输出端口列表）。
  *
- * 仅用 ICMP echo（InetAddress.isReachable）探测存活；不响应 ICMP 的设备
- * （如部分摄像头/IoT/手机）由 mDNS / ONVIF 多播发现补充，此处不做端口扫描。
+ * 安卓普通应用无 raw socket 权限，ICMP echo 常被系统禁用，故综合两种手段判断存活：
+ *  1) InetAddress.isReachable —— ICMP echo（系统允许时）+ TCP echo(7)；
+ *  2) TCP connect 探测常见端口（80/443/445/22/554/1900…），任一可连即视为存活。
+ * 仅用于发现设备在线，不扫描/输出开放端口列表。
  */
 object HostDiscovery {
 
@@ -42,7 +46,7 @@ object HostDiscovery {
         }
     }
 
-    /** ICMP 探测存活，返回响应耗时(ms)。 */
+    /** ICMP + TCP 探测判断存活，返回响应耗时(ms)。不输出端口。 */
     private fun probe(ip: String, timeoutMs: Int): HostHit? {
         val t0 = System.currentTimeMillis()
         val reachable = try {
@@ -50,7 +54,26 @@ object HostDiscovery {
         } catch (e: Exception) {
             false
         }
-        return if (reachable) HostHit(ip, System.currentTimeMillis() - t0, "icmp") else null
+        if (reachable) return HostHit(ip, System.currentTimeMillis() - t0, "icmp")
+
+        // ICMP 在安卓普通应用上常被禁用，回退 TCP 探测常见端口判断存活
+        for (p in ALIVE_PROBE_PORTS) {
+            if (connectOnce(ip, p, minOf(timeoutMs, 400))) {
+                return HostHit(ip, System.currentTimeMillis() - t0, "tcp")
+            }
+        }
+        return null
+    }
+
+    private fun connectOnce(host: String, port: Int, timeoutMs: Int): Boolean {
+        return try {
+            Socket().use { s ->
+                s.connect(InetSocketAddress(host, port), timeoutMs)
+                s.isConnected
+            }
+        } catch (e: Exception) {
+            false
+        }
     }
 
     /** 由网络地址和广播地址生成区间内全部 IPv4（不含两端）。 */
@@ -73,4 +96,7 @@ object HostDiscovery {
     private fun longToIp(l: Long): String {
         return "${(l shr 24) and 0xFF}.${(l shr 16) and 0xFF}.${(l shr 8) and 0xFF}.${l and 0xFF}"
     }
+
+    // 存活判断用的端口探测集（仅判断在线，不输出端口列表）
+    private val ALIVE_PROBE_PORTS = intArrayOf(80, 443, 445, 22, 554, 1900, 5000, 8080, 7547, 8000, 8888, 9100)
 }
