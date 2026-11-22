@@ -1,5 +1,18 @@
 # 更新日志
 
+## v1.0.3 — 2026-11-23
+
+移除端口扫描，专注设备发现，重点识别针孔/IP 摄像头。
+
+### 改动
+- 移除 TCP 端口扫描（scanPorts/openPorts），主机发现改为纯 ICMP
+- 新增 ONVIF WS-Discovery（239.255.255.250:3702），专门发现 IP 摄像头/针孔摄像头
+- 设备发现四路：ICMP + ARP + mDNS + ONVIF
+- 设备类型推断不依赖端口，ONVIF IPCamera 优先识别为摄像头
+- 加强摄像头厂商 OUI（海康/大华/萤石/Wyze/Reolink/小蚁）
+- UI 移除端口列表，摄像头醒目标注（⚠ 摄像头），摄像头优先排序
+- Release 产物为 APK
+
 ## v1.0.2 — 2026-11-23
 
 最低版本要求提升至 Android 10（minSdk 29）；发布产物为 APK。
