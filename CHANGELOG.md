@@ -1,5 +1,12 @@
 # 更新日志
 
+## v1.0.1 — 2026-11-23
+
+修复 v1.0.0 因 CI 配置问题（gradlew 在 Linux runner 缺执行位）无法成功发布的问题；产品功能与 v1.0.0 一致。
+
+### 修复
+- CI：`gradlew` 添加可执行权限位（`git update-index --chmod=+x`）+ 工作流 `chmod +x gradlew` 双保险，修复 Release 构建失败
+
 ## v1.0.0 — 2026-11-23
 
 首发版本。
