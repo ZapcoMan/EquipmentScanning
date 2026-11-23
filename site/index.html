@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EquipmentScanning — 安卓局域网设备扫描器</title>
 <meta name="description" content="无需 root 的安卓局域网扫描器：发现 WiFi 下所有设备，识别 IP / MAC / 厂商 / 类型与服务，重点识别 IP 摄像头与可疑设备。">
+<link rel="icon" type="image/svg+xml" href="assets/icon.svg">
 <style>
   :root{
     --bg:#0b1020; --bg2:#121a33; --card:#161f3d; --line:#243056;
@@ -20,6 +21,7 @@
   nav{position:sticky;top:0;z-index:10;backdrop-filter:blur(10px);background:rgba(11,16,32,.78);border-bottom:1px solid var(--line)}
   nav .wrap{display:flex;align-items:center;gap:14px;height:60px}
   .logo{font-weight:800;font-size:18px;letter-spacing:.5px;display:flex;align-items:center;gap:8px}
+  .logo img{width:24px;height:24px;border-radius:6px;display:block}
   .logo span{color:var(--acc)}
   .badge{font-size:12px;padding:3px 9px;border-radius:999px;background:#1c2a55;color:var(--acc2);border:1px solid #2a3a6e}
   nav .right{margin-left:auto;display:flex;gap:16px;align-items:center}
@@ -66,7 +68,7 @@
 <body>
 <nav>
   <div class="wrap">
-    <div class="logo">📡 Equip<span>mentScanning</span></div>
+    <div class="logo"><img src="assets/icon.svg" alt="EquipmentScanning">Equip<span>mentScanning</span></div>
     <span class="badge">v1.2.1</span>
     <div class="right">
       <a href="#features">功能</a>
@@ -154,6 +156,7 @@
       <a class="btn primary" href="https://github.com/ZapcoMan/EquipmentScanning/releases/latest" target="_blank" rel="noopener">⬇ 获取最新 APK</a>
       <a class="btn ghost" href="https://github.com/ZapcoMan/EquipmentScanning" target="_blank" rel="noopener">查看源码</a>
     </div>
+    <p style="color:var(--muted);font-size:13px;margin-top:14px">当前版本 <b style="color:var(--acc2)">v1.2.1</b> — 全新雷达风格图标，发布包统一命名为 EquipmentScanning-&lt;版本&gt;.apk。</p>
     <div class="note" style="margin-top:22px"><b>系统要求：</b>Android 8.1（API 27）及以上。若浏览器拦截安装，请在系统设置中允许“安装未知来源应用”。扫描结果实时展示在主界面列表中，点击设备卡片可展开端口与服务详情。</div>
   </div>
 </section>

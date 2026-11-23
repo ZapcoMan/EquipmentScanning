@@ -8,6 +8,7 @@
 - 重新设计应用图标：雷达扫描方案（同心刻度环 + 青色扫描扇面与波前 + 中心蓝色源点 + 三个被测设备光点），背景改为深空渐变并加右上青色光晕
 - 新增 Android 13+ 主题图标专用单色图层（`ic_launcher_monochrome`），不再复用彩色前景
 - 发布产物更名为 `EquipmentScanning-<tag>.apk`（原 `NetMap-<tag>.apk`），Release 标题、上传通配符、CI 密钥文件名同步更新
+- 官网（GitHub Pages）同步：新增 `site/assets/icon.svg` 并用作导航 logo 与 favicon，版本号更新至 v1.2.1
 
 ## v1.2.0 — 2026-11-23
 
