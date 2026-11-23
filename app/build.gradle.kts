@@ -38,9 +38,9 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
+            // 关闭 R8 优化，避免裁剪 Compose 运行时类导致真机闪退/白屏
             optimization {
-                enable = true
-                packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
+                enable = false
             }
         }
     }
