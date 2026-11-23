@@ -79,9 +79,10 @@ object MdnsDiscovery {
                             parsed.hostnames.forEach { info.hostnames.add(it) }
                             parsed.services.forEach { info.services.add(it) }
                             parsed.ports.forEach { info.ports.add(it) }
-                            parsed.aRecords.forEach { (host, ip) ->
-                                byIp.getOrPut(ip) { MutableMdnsInfo() }.hostnames.add(host)
-                            }
+                            // A 记录的 hostname 关联到响应源 srcIp（A 记录通常就是响应设备自身的
+                            // IP↔hostname 映射），不再用 A 记录里的 ip 单独新增设备，
+                            // 避免 DNS 解析偏差把垃圾字节当成 IP 造出"幽灵设备"。
+                            parsed.aRecords.forEach { (host, _) -> info.hostnames.add(host) }
                         } catch (_: java.net.SocketTimeoutException) {
                             break
                         } catch (_: Exception) {

@@ -44,9 +44,12 @@ class NetworkScanner(private val context: Context) {
 
         val allIps = LinkedHashSet<String>()
         hosts.forEach { allIps.add(it.ip) }
-        wifi.gatewayIp?.let { allIps.add(it) }
+        // 网关仅在 IP 有效时加入（排除 dhcpInfo 异常返回的 0.0.0.0）
+        wifi.gatewayIp?.takeIf { it.isNotBlank() && it != "0.0.0.0" }?.let { allIps.add(it) }
         mdnsMap.keys.forEach { allIps.add(it) }
         onvifMap.keys.forEach { allIps.add(it) }
+        // 排除本机自身 IP，避免把本机显示成设备
+        myIp?.let { allIps.remove(it) }
 
         val total = allIps.size.coerceAtLeast(1)
         var done = 0
