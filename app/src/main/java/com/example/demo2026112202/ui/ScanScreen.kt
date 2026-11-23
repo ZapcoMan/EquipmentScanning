@@ -233,7 +233,13 @@ private fun DeviceCard(device: DeviceInfo) {
                 Text(device.deviceTypeIcon, fontSize = 26.sp)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(device.deviceType, fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(device.deviceType, fontWeight = FontWeight.SemiBold)
+                        if (device.isSelf) {
+                            Spacer(Modifier.width(6.dp))
+                            Tag("本机")
+                        }
+                    }
                     Text(
                         device.ip,
                         fontFamily = FontFamily.Monospace,

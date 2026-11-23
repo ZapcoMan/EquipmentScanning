@@ -33,7 +33,8 @@ data class DeviceInfo(
     val sources: Set<String>,
     val suspicionScore: Int,
     val suspicionReasons: List<String>,
-    val isSuspicious: Boolean
+    val isSuspicious: Boolean,
+    val isSelf: Boolean = false
 ) {
     val discoveryNote: String
         get() = sources.joinToString(", ")

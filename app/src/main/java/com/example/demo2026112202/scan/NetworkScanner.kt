@@ -53,15 +53,15 @@ class NetworkScanner(private val context: Context) {
         mdnsMap.keys.forEach { allIps.add(it) }
         onvifMap.keys.forEach { allIps.add(it) }
         ssdpMap.keys.forEach { allIps.add(it) }
-        // 排除本机自身 IP，避免把本机显示成设备
-        myIp?.let { allIps.remove(it) }
+        // 保留本机并加入列表，稍后标注为"本机"（便于对照哪台是自己）
+        myIp?.takeIf { it.isNotBlank() && it != "0.0.0.0" }?.let { allIps.add(it) }
 
         val total = allIps.size.coerceAtLeast(1)
         var done = 0
         val devices = coroutineScope {
             allIps.map { ip ->
                 async {
-                    val device = analyze(ip, hosts, mdnsMap, arpMap, onvifMap, ssdpMap, wifi.gatewayIp)
+                    val device = analyze(ip, hosts, mdnsMap, arpMap, onvifMap, ssdpMap, wifi.gatewayIp, myIp)
                     done++
                     onProgress("正在分析设备 $done/$total", done, total)
                     device
@@ -89,7 +89,8 @@ class NetworkScanner(private val context: Context) {
         arp: Map<String, String>,
         onvif: Map<String, OnvifDevice>,
         ssdp: Map<String, SsdpInfo>,
-        gatewayIp: String?
+        gatewayIp: String?,
+        myIp: String?
     ): DeviceInfo {
         val hit = hosts.firstOrNull { it.ip == ip }
         val mac = arp[ip] ?: hit?.let { arp[it.ip] }
@@ -142,7 +143,8 @@ class NetworkScanner(private val context: Context) {
             sources = sources,
             suspicionScore = suspicion.score,
             suspicionReasons = suspicion.reasons.map { "${it.factor}(+${it.score})" },
-            isSuspicious = suspicion.isSuspicious
+            isSuspicious = suspicion.isSuspicious,
+            isSelf = (ip == myIp)
         )
     }
 
