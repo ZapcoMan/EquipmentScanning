@@ -1,6 +1,7 @@
 package com.example.demo2026112202.scan
 
 import android.content.Context
+import android.net.ConnectivityManager
 import android.net.wifi.WifiManager
 import android.text.format.Formatter
 
@@ -28,19 +29,25 @@ class WifiInfoProvider(private val context: Context) {
         val dhcp = wifi.dhcpInfo
         val conn = wifi.connectionInfo
 
-        val myIp = intToIp(dhcp.ipAddress)
-        val mask = intToIp(dhcp.netmask)
-        val gateway = intToIp(dhcp.gateway)
-        val network = if (dhcp.ipAddress != 0 && dhcp.netmask != 0)
-            intToIp(dhcp.ipAddress and dhcp.netmask) else null
-        val broadcast = if (dhcp.ipAddress != 0 && dhcp.netmask != 0)
-            intToIp(dhcp.ipAddress or dhcp.netmask.inv()) else null
+        val dhcpIp = dhcp.ipAddress
+        val dhcpMask = dhcp.netmask
+        // dhcpInfo 在 Android 12+ 部分机型返回 0，用 ConnectivityManager 兜底：
+        // 取本机 IPv4 + prefix 推算子网（仅需 ACCESS_NETWORK_STATE，不依赖定位权限）
+        val v4Link = connectivityIpv4()
 
-        val hostCount = if (dhcp.netmask != 0) {
-            val maskBits = dhcp.netmask.countOneBits()
+        val myIp = if (dhcpIp != 0) intToIp(dhcpIp) else (v4Link?.ip ?: "0.0.0.0")
+        val mask = if (dhcpMask != 0) intToIp(dhcpMask) else (v4Link?.mask ?: "0.0.0.0")
+        val gateway = intToIp(dhcp.gateway)
+        val network = if (dhcpIp != 0 && dhcpMask != 0)
+            intToIp(dhcpIp and dhcpMask) else v4Link?.network
+        val broadcast = if (dhcpIp != 0 && dhcpMask != 0)
+            intToIp(dhcpIp or dhcpMask.inv()) else v4Link?.broadcast
+
+        val hostCount = if (dhcpMask != 0) {
+            val maskBits = dhcpMask.countOneBits()
             // 主机数 = 2^(32-掩码位数) - 2（去掉网络地址与广播地址）
             ((1 shl (32 - maskBits)) - 2).coerceAtLeast(0)
-        } else 0
+        } else (v4Link?.hostCount ?: 0)
 
         val freq = conn.frequency
         val channel = freqToChannel(freq)
@@ -53,7 +60,9 @@ class WifiInfoProvider(private val context: Context) {
 
         // 老接口 Formatter.formatIpAddress 已废弃，但仍是把 int->IP 最简单的方式。
         @Suppress("DEPRECATION")
-        val ipAlt = try { Formatter.formatIpAddress(dhcp.ipAddress) } catch (e: Exception) { myIp }
+        val ipAlt = if (dhcpIp != 0) {
+            try { Formatter.formatIpAddress(dhcpIp) } catch (e: Exception) { myIp }
+        } else myIp
 
         return WifiNetworkInfo(
             ssid = ssid,
@@ -89,4 +98,49 @@ class WifiInfoProvider(private val context: Context) {
         freq in 5160..5885 -> (freq - 5000) / 5
         else -> 0
     }
+
+    /**
+     * ConnectivityManager 兜底：当 WifiManager.dhcpInfo 在 Android 12+ 返回 0 时，
+     * 用本机 IPv4 地址 + prefix 推算网络地址/广播地址/主机数。
+     * 仅需 ACCESS_NETWORK_STATE，不依赖定位权限。
+     */
+    private fun connectivityIpv4(): Ipv4Link? = try {
+        val cm = context.applicationContext
+            .getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return null
+        val active = cm.activeNetwork ?: return null
+        val lp = cm.getLinkProperties(active) ?: return null
+        val la = lp.linkAddresses.firstOrNull { it.address is java.net.Inet4Address }
+            ?: return null
+        val bytes = (la.address as java.net.Inet4Address).address
+        if (bytes.size != 4) return null
+        val prefix = la.prefixLength
+        if (prefix <= 0 || prefix >= 32) return null
+        val ipLong = ((bytes[0].toLong() and 0xFF) shl 24) or
+                     ((bytes[1].toLong() and 0xFF) shl 16) or
+                     ((bytes[2].toLong() and 0xFF) shl 8) or
+                      (bytes[3].toLong() and 0xFF)
+        val maskLong = (0xFFFFFFFFL shl (32 - prefix)) and 0xFFFFFFFFL
+        val netLong = ipLong and maskLong
+        val bcastLong = ipLong or (maskLong.inv() and 0xFFFFFFFFL)
+        val hostCount = ((1L shl (32 - prefix)) - 2).coerceAtLeast(0L).toInt()
+        Ipv4Link(
+            ip = longToIpStr(ipLong),
+            mask = longToIpStr(maskLong),
+            network = longToIpStr(netLong),
+            broadcast = longToIpStr(bcastLong),
+            hostCount = hostCount
+        )
+    } catch (_: Exception) { null }
+
+    private fun longToIpStr(l: Long): String =
+        "${(l shr 24) and 0xFF}.${(l shr 16) and 0xFF}.${(l shr 8) and 0xFF}.${l and 0xFF}"
+
+    private data class Ipv4Link(
+        val ip: String,
+        val mask: String,
+        val network: String,
+        val broadcast: String,
+        val hostCount: Int
+    )
 }
