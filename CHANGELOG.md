@@ -1,5 +1,16 @@
 # 更新日志
 
+## v1.0.6 — 2026-11-23
+
+修复真机闪退/白屏；自定义 App 图标。
+
+### 修复
+- 关闭 release R8 优化（optimization.enable=false）：R8 packageScope 裁剪可能破坏 Compose 运行时类导致真机崩溃
+- 关闭动态颜色（dynamicColor=false）：部分 ROM 动态取色异常导致白屏，改用固定配色
+
+### 新增
+- 自定义 App 图标：深蓝渐变背景 + WiFi 三弧 + 设备点
+
 ## v1.0.5 — 2026-11-23
 
 新增可疑设备检测，识别自制/隐藏摄像头。
