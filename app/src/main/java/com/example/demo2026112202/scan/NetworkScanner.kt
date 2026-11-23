@@ -61,7 +61,7 @@ class NetworkScanner(private val context: Context) {
         val devices = coroutineScope {
             allIps.map { ip ->
                 async {
-                    val device = analyze(ip, hosts, mdnsMap, arpMap, onvifMap, ssdpMap)
+                    val device = analyze(ip, hosts, mdnsMap, arpMap, onvifMap, ssdpMap, wifi.gatewayIp)
                     done++
                     onProgress("正在分析设备 $done/$total", done, total)
                     device
@@ -88,7 +88,8 @@ class NetworkScanner(private val context: Context) {
         mdns: Map<String, MdnsInfo>,
         arp: Map<String, String>,
         onvif: Map<String, OnvifDevice>,
-        ssdp: Map<String, SsdpInfo>
+        ssdp: Map<String, SsdpInfo>,
+        gatewayIp: String?
     ): DeviceInfo {
         val hit = hosts.firstOrNull { it.ip == ip }
         val mac = arp[ip] ?: hit?.let { arp[it.ip] }
@@ -98,12 +99,19 @@ class NetworkScanner(private val context: Context) {
         val ssdpInfo = ssdp[ip]
         val hostname = mdnsInfo?.hostnames?.firstOrNull() ?: reverseDns(ip)
 
-        val type = DeviceTypeGuesser.guess(
+        val guessed = DeviceTypeGuesser.guess(
             mac, vendor, hostname,
             mdnsInfo?.services?.toList() ?: emptyList(),
             onvifInfo?.types ?: emptySet(),
             onvifInfo?.scopes ?: emptySet()
         )
+        // 网关 IP 由 DHCP 确定，直接识别为路由器/网关，
+        // 避免因 Android 10+ 拿不到邻居 MAC / 反向 DNS 失败而被兜底成"联网设备"。
+        val type = if (ip == gatewayIp && guessed.type == "联网设备") {
+            DeviceTypeGuesser.Guess("网关/路由器", "🌐")
+        } else {
+            guessed
+        }
 
         val suspicion = SuspicionDetector.evaluate(
             mac, vendor, hostname,
