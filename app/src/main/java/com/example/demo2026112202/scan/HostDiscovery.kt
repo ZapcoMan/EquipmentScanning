@@ -7,9 +7,11 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import java.net.ConnectException
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.net.SocketTimeoutException
 
 /** 主机发现的命中结果。 */
 data class HostHit(val ip: String, val rttMs: Long, val source: String)
@@ -46,6 +48,9 @@ object HostDiscovery {
         }
     }
 
+    /** TCP 探测结果：被拒绝(RST)同样证明主机在线，只有超时才视为离线。 */
+    private enum class ProbeResult { OPEN, REFUSED, TIMEOUT, UNKNOWN }
+
     /** ICMP + TCP 探测判断存活，返回响应耗时(ms)。不输出端口。 */
     private fun probe(ip: String, timeoutMs: Int): HostHit? {
         val t0 = System.currentTimeMillis()
@@ -56,23 +61,31 @@ object HostDiscovery {
         }
         if (reachable) return HostHit(ip, System.currentTimeMillis() - t0, "icmp")
 
-        // ICMP 在安卓普通应用上常被禁用，回退 TCP 探测常见端口判断存活
+        // ICMP 在安卓普通应用上常被禁用，回退 TCP 探测常见端口判断存活。
+        // 关键：端口关闭时主机会回 RST（ConnectException），同样证明主机在线；
+        // 只有连接超时（SocketTimeoutException）才视为离线。
         for (p in ALIVE_PROBE_PORTS) {
-            if (connectOnce(ip, p, minOf(timeoutMs, 400))) {
-                return HostHit(ip, System.currentTimeMillis() - t0, "tcp")
+            when (connectOnce(ip, p, minOf(timeoutMs, 400))) {
+                ProbeResult.OPEN, ProbeResult.REFUSED ->
+                    return HostHit(ip, System.currentTimeMillis() - t0, "tcp")
+                ProbeResult.TIMEOUT, ProbeResult.UNKNOWN -> { /* 继续探测下一个端口 */ }
             }
         }
         return null
     }
 
-    private fun connectOnce(host: String, port: Int, timeoutMs: Int): Boolean {
+    private fun connectOnce(host: String, port: Int, timeoutMs: Int): ProbeResult {
         return try {
-            Socket().use { s ->
-                s.connect(InetSocketAddress(host, port), timeoutMs)
-                s.isConnected
-            }
+            Socket().use { s -> s.connect(InetSocketAddress(host, port), timeoutMs) }
+            ProbeResult.OPEN
+        } catch (e: ConnectException) {
+            // 连接被拒绝 = 主机回了 RST，端口关闭但主机在线
+            ProbeResult.REFUSED
+        } catch (e: SocketTimeoutException) {
+            // 超时 = 主机离线或端口被过滤
+            ProbeResult.TIMEOUT
         } catch (e: Exception) {
-            false
+            ProbeResult.UNKNOWN
         }
     }
 
