@@ -32,9 +32,9 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > app/netmap-release.jks
+            echo "$KEYSTORE_BASE64" | base64 -d > app/equipment-scanning-release.jks
             cat > keystore.properties <<EOF
-          storeFile=netmap-release.jks
+          storeFile=equipment-scanning-release.jks
           storePassword=$KEYSTORE_PASSWORD
           keyAlias=$KEY_ALIAS
           keyPassword=$KEY_PASSWORD
@@ -57,17 +57,17 @@ jobs:
           TAG=${GITHUB_REF#refs/tags/}
           [ "$TAG" = "$GITHUB_REF" ] && TAG="dev"
           mkdir -p out
-          cp app/build/outputs/apk/release/*.apk "out/NetMap-${TAG}.apk" 2>/dev/null \
-            || cp app/build/outputs/apk/debug/*.apk "out/NetMap-${TAG}.apk"
+          cp app/build/outputs/apk/release/*.apk "out/EquipmentScanning-${TAG}.apk" 2>/dev/null \
+            || cp app/build/outputs/apk/debug/*.apk "out/EquipmentScanning-${TAG}.apk"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: out/NetMap-*.apk
+          files: out/EquipmentScanning-*.apk
           generate_release_notes: true
           body: |
-            ## NetMap ${{ steps.asset.outputs.tag }}
+            ## EquipmentScanning ${{ steps.asset.outputs.tag }}
 
             详见 [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/master/CHANGELOG.md)。
 

@@ -1,39 +1,64 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- WiFi 三弧（白色描边）-->
+    <!-- 雷达外圈 -->
     <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="5.5"
+        android:strokeColor="#E6FFFFFF"
+        android:strokeWidth="3"
+        android:fillColor="#00000000"
+        android:pathData="M54,54 m-27,0 a27,27 0 1,0 54,0 a27,27 0 1,0 -54,0" />
+    <!-- 内圈刻度环 -->
+    <path
+        android:strokeColor="#59FFFFFF"
+        android:strokeWidth="2"
+        android:fillColor="#00000000"
+        android:pathData="M54,54 m-16.5,0 a16.5,16.5 0 1,0 33,0 a16.5,16.5 0 1,0 -33,0" />
+    <!-- 扫描扇面（青色，由圆心向外衰减）-->
+    <path android:pathData="M54,54 L81,54 A27,27 0 0 0 73.09,34.91 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="54"
+                android:startY="54"
+                android:endX="81"
+                android:endY="54"
+                android:startColor="#9E22D3EE"
+                android:endColor="#0022D3EE"
+                android:type="linear" />
+        </aapt:attr>
+    </path>
+    <!-- 扫描波前 -->
+    <path
+        android:strokeColor="#22D3EE"
+        android:strokeWidth="3.5"
         android:strokeLineCap="round"
         android:fillColor="#00000000"
-        android:pathData="M22,56 A32,32 0 0 1 86,56" />
+        android:pathData="M54,54 L81,54" />
+    <!-- 中心源点（蓝色 + 白色描边）-->
     <path
         android:strokeColor="#FFFFFF"
-        android:strokeWidth="5.5"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M32,56 A22,22 0 0 1 76,56" />
-    <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="5.5"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M42,56 A12,12 0 0 1 66,56" />
-    <!-- 中心点（蓝色，代表本机/雷达源）-->
-    <path
+        android:strokeWidth="2"
         android:fillColor="#4F8CFF"
-        android:pathData="M54,56 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
-    <!-- 设备点（青色，表示扫描发现的设备）-->
+        android:pathData="M54,54 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+    <!-- 被发现设备：光晕 + 实心青点 -->
+    <path
+        android:fillColor="#4022D3EE"
+        android:pathData="M32,50 m-6.5,0 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0" />
     <path
         android:fillColor="#22D3EE"
-        android:pathData="M54,18 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+        android:pathData="M32,50 m-3.2,0 a3.2,3.2 0 1,0 6.4,0 a3.2,3.2 0 1,0 -6.4,0" />
+    <path
+        android:fillColor="#4022D3EE"
+        android:pathData="M48,79 m-6.5,0 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0" />
     <path
         android:fillColor="#22D3EE"
-        android:pathData="M26,33 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+        android:pathData="M48,79 m-3.2,0 a3.2,3.2 0 1,0 6.4,0 a3.2,3.2 0 1,0 -6.4,0" />
+    <path
+        android:fillColor="#4022D3EE"
+        android:pathData="M76,58 m-6.5,0 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0" />
     <path
         android:fillColor="#22D3EE"
-        android:pathData="M82,33 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+        android:pathData="M76,58 m-3.2,0 a3.2,3.2 0 1,0 6.4,0 a3.2,3.2 0 1,0 -6.4,0" />
 </vector>
