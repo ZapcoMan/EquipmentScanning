@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NetMap 扫描器 — 安卓局域网设备发现工具</title>
-<meta name="description" content="无需 root 的安卓局域网扫描器：发现 WiFi 下所有设备，识别 IP / MAC / 厂商 / 端口 / 设备类型，对标 Nmap 核心能力。">
+<title>EquipmentScanning — 安卓局域网设备扫描器</title>
+<meta name="description" content="无需 root 的安卓局域网扫描器：发现 WiFi 下所有设备，识别 IP / MAC / 厂商 / 类型与服务，重点识别 IP 摄像头与可疑设备。">
 <style>
   :root{
     --bg:#0b1020; --bg2:#121a33; --card:#161f3d; --line:#243056;
@@ -66,8 +66,8 @@
 <body>
 <nav>
   <div class="wrap">
-    <div class="logo">📶 Net<span>Map</span></div>
-    <span class="badge">v1.0.6</span>
+    <div class="logo">📡 Equip<span>mentScanning</span></div>
+    <span class="badge">v1.2.0</span>
     <div class="right">
       <a href="#features">功能</a>
       <a href="#compare">对比</a>
@@ -81,7 +81,7 @@
 <header class="hero">
   <div class="wrap">
     <h1>扫遍你 WiFi 下的<b>每一台设备</b></h1>
-    <p class="sub">NetMap 是一款无需 root 的安卓局域网扫描器，发现同一 WiFi 下所有联网设备，识别 IP、MAC、厂商、开放端口与设备类型——对标 Nmap 的核心能力，装在口袋里。</p>
+    <p class="sub">EquipmentScanning 是一款无需 root 的安卓局域网扫描器，发现同一 WiFi 下所有联网设备，识别 IP、MAC、厂商、设备类型与服务——对标 Nmap 的核心能力，装在口袋里。</p>
     <div class="cta">
       <a class="btn primary" href="https://github.com/ZapcoMan/EquipmentScanning/releases/latest" target="_blank" rel="noopener">⬇ 下载 APK</a>
       <a class="btn ghost" href="#features">查看功能</a>
@@ -89,10 +89,10 @@
     <div class="pillrow">
       <span class="pill">无需 root</span>
       <span class="pill">设备发现</span>
-      <span class="pill">端口扫描</span>
+      <span class="pill">摄像头识别</span>
       <span class="pill">厂商识别</span>
-      <span class="pill">mDNS / Bonjour</span>
-      <span class="pill">设备类型推断</span>
+      <span class="pill">mDNS / ONVIF / SSDP</span>
+      <span class="pill">可疑设备检测</span>
     </div>
   </div>
 </header>
@@ -102,11 +102,11 @@
     <h2 class="sec">核心能力</h2>
     <p class="secdesc">把 Nmap 式的局域网侦查能力，做成普通安卓手机能直接用的 App。</p>
     <div class="grid">
-      <div class="card"><div class="ic">📡</div><h3>主机发现</h3><p>子网内并发 ICMP + TCP 探测，即使禁 ping 的设备也能被发现。</p></div>
+      <div class="card"><div class="ic">📡</div><h3>主机发现</h3><p>子网内并发 ICMP + TCP 探测，区分「连接被拒绝/超时」，无开放端口的手机等设备也能发现。</p></div>
       <div class="card"><div class="ic">🔢</div><h3>IP / MAC / 厂商</h3><p>读取 ARP 表获取 MAC，按 OUI 前缀识别网卡厂商（路由器/IoT/手机…）。</p></div>
-      <div class="card"><div class="ic">🔌</div><h3>端口扫描</h3><p>TCP connect 扫描 100+ 常见端口并标注服务（HTTP、SSH、RTSP、RDP、SMB…）。</p></div>
-      <div class="card"><div class="ic">🔊</div><h3>mDNS 多播发现</h3><p>枚举 AirPlay / GoogleCast / IPP / SMB / SSH 等服务，发现投屏、打印机、音箱。</p></div>
-      <div class="card"><div class="ic">🏷️</div><h3>设备类型推断</h3><p>综合端口、mDNS、OUI 三路线索，推断路由器/IoT/打印机/摄像头/手机等类型。</p></div>
+      <div class="card"><div class="ic">📷</div><h3>摄像头识别</h3><p>ONVIF WS-Discovery 发现 IP 摄像头 / NVR，并对无法归类的设备做可疑度评分。</p></div>
+      <div class="card"><div class="ic">🔊</div><h3>多协议发现</h3><p>mDNS / ONVIF / SSDP 多播发现投屏、打印机、音箱、电视、NAS 等设备。</p></div>
+      <div class="card"><div class="ic">🏷️</div><h3>设备类型推断</h3><p>综合 ONVIF、mDNS、OUI 线索推断路由器/IoT/打印机/摄像头/手机等，网关直接识别。</p></div>
       <div class="card"><div class="ic">📶</div><h3>WiFi 信息</h3><p>展示 SSID、本机 IP、网关、子网、信号强度、信道与链路速率。</p></div>
     </div>
   </div>
@@ -115,14 +115,14 @@
 <section id="compare">
   <div class="wrap">
     <h2 class="sec">与 Nmap 的关系</h2>
-    <p class="secdesc">Nmap 没有官方安卓原生版，其 SYN 半开扫描 / OS 指纹依赖 raw socket，必须 root。NetMap 在普通设备上提供力所能及的核心能力。</p>
+    <p class="secdesc">Nmap 没有官方安卓原生版，其 SYN 半开扫描 / OS 指纹依赖 raw socket，必须 root。EquipmentScanning 在普通设备上提供力所能及的核心能力。</p>
     <table class="cmp">
-      <thead><tr><th>能力</th><th>NetMap（无 root）</th><th>Nmap 完整版（需 root）</th></tr></thead>
+      <thead><tr><th>能力</th><th>EquipmentScanning（无 root）</th><th>Nmap 完整版（需 root）</th></tr></thead>
       <tbody>
         <tr><td>主机发现</td><td class="yes">✓ ICMP + TCP</td><td class="yes">✓ 多种</td></tr>
-        <tr><td>端口扫描</td><td class="yes">✓ TCP connect</td><td class="yes">✓ SYN/UDP/…</td></tr>
+        <tr><td>端口扫描</td><td class="no">✗ 已移除</td><td class="yes">✓ SYN/UDP/…</td></tr>
         <tr><td>MAC / 厂商</td><td class="yes">✓ ARP + OUI</td><td class="yes">✓</td></tr>
-        <tr><td>mDNS / 服务发现</td><td class="yes">✓</td><td class="yes">✓（-sV）</td></tr>
+        <tr><td>多协议发现</td><td class="yes">✓ mDNS/ONVIF/SSDP</td><td class="yes">✓（-sV）</td></tr>
         <tr><td>SYN 半开扫描</td><td class="no">✗ 需 root</td><td class="yes">✓</td></tr>
         <tr><td>OS 指纹识别</td><td class="no">✗ 需 raw socket</td><td class="yes">✓（-O）</td></tr>
         <tr><td>运行环境</td><td class="yes">✓ 原生安卓 App</td><td class="no">Termux / 需 root</td></tr>
@@ -137,10 +137,11 @@
     <h2 class="sec">所需权限</h2>
     <p class="secdesc">均为扫描所必需，运行时仅需授予“精确位置”一项。</p>
     <ul class="perms">
-      <li><code>ACCESS_FINE_LOCATION</code> — Android 9+ 读取 WiFi 信息（SSID/BSSID）必需</li>
+      <li><code>ACCESS_FINE_LOCATION</code> / <code>ACCESS_COARSE_LOCATION</code> — Android 9+ 读取 WiFi 信息（SSID/BSSID）</li>
+      <li><code>NEARBY_WIFI_DEVICES</code> — Android 13+ 读取 WiFi 信息（neverForLocation）</li>
       <li><code>ACCESS_WIFI_STATE</code> / <code>ACCESS_NETWORK_STATE</code> — 读取连接与子网信息</li>
-      <li><code>CHANGE_WIFI_MULTICAST_STATE</code> — mDNS 多播发现</li>
-      <li><code>INTERNET</code> — TCP 端口探测</li>
+      <li><code>CHANGE_WIFI_MULTICAST_STATE</code> — mDNS / ONVIF / SSDP 多播发现</li>
+      <li><code>INTERNET</code> — TCP 探测</li>
     </ul>
   </div>
 </section>
@@ -159,9 +160,9 @@
 
 <footer>
   <div class="wrap">
-    NetMap 扫描器 · 开源于 GitHub · MIT License
+    EquipmentScanning 设备扫描器 · 开源于 GitHub · MIT License
     <div class="kv">
-      <img alt="version" src="https://img.shields.io/badge/version-1.0.6-4f8cff">
+      <img alt="version" src="https://img.shields.io/badge/version-1.2.0-4f8cff">
       <img alt="platform" src="https://img.shields.io/badge/platform-Android%208.1%2B-22d3ee">
       <img alt="license" src="https://img.shields.io/badge/license-MIT-34d399">
     </div>

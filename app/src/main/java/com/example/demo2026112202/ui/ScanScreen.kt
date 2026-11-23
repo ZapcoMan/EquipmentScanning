@@ -92,7 +92,7 @@ private fun HeaderRow(state: ScanUiState) {
         Text("📶", fontSize = 24.sp)
         Spacer(Modifier.width(8.dp))
         Column {
-            Text("NetMap 扫描器", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("EquipmentScanning", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text(
                 state.phase,
                 style = MaterialTheme.typography.bodySmall,
