@@ -10,6 +10,11 @@
     <!-- Android 9+ 获取 SSID/BSSID/扫描结果需要精确定位 -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Android 13+ 读取 WiFi 信息(SSID/BSSID)可用此权限替代定位；neverForLocation 表示不用于定位 -->
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="33" />
     <!-- mDNS/SSDP 多播发现需要 -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
