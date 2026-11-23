@@ -30,12 +30,16 @@ class NetworkScanner(private val context: Context) {
         }
 
         onProgress("正在发现局域网设备…", 0, wifi.hostCount.coerceAtLeast(1))
-        val (hosts, mdnsMap, arpMap, onvifMap) = coroutineScope {
+        val (hosts, mdnsMap, arpMap, onvifMap, ssdpMap) = coroutineScope {
             val hostsDeferred = async { HostDiscovery.discoverHosts(net, bcast, myIp) }
             val mdnsDeferred = async { MdnsDiscovery.discover(context) }
             val onvifDeferred = async { OnvifDiscovery.discover(context) }
             val arpDeferred = async { ArpTableReader.read() }
-            Quad(hostsDeferred.await(), mdnsDeferred.await(), arpDeferred.await(), onvifDeferred.await())
+            val ssdpDeferred = async { SsdpDiscovery.discover(context) }
+            Quint(
+                hostsDeferred.await(), mdnsDeferred.await(), arpDeferred.await(),
+                onvifDeferred.await(), ssdpDeferred.await()
+            )
         }
 
         if (arpMap.isEmpty()) {
@@ -48,6 +52,7 @@ class NetworkScanner(private val context: Context) {
         wifi.gatewayIp?.takeIf { it.isNotBlank() && it != "0.0.0.0" }?.let { allIps.add(it) }
         mdnsMap.keys.forEach { allIps.add(it) }
         onvifMap.keys.forEach { allIps.add(it) }
+        ssdpMap.keys.forEach { allIps.add(it) }
         // 排除本机自身 IP，避免把本机显示成设备
         myIp?.let { allIps.remove(it) }
 
@@ -56,7 +61,7 @@ class NetworkScanner(private val context: Context) {
         val devices = coroutineScope {
             allIps.map { ip ->
                 async {
-                    val device = analyze(ip, hosts, mdnsMap, arpMap, onvifMap)
+                    val device = analyze(ip, hosts, mdnsMap, arpMap, onvifMap, ssdpMap)
                     done++
                     onProgress("正在分析设备 $done/$total", done, total)
                     device
@@ -82,13 +87,15 @@ class NetworkScanner(private val context: Context) {
         hosts: List<HostHit>,
         mdns: Map<String, MdnsInfo>,
         arp: Map<String, String>,
-        onvif: Map<String, OnvifDevice>
+        onvif: Map<String, OnvifDevice>,
+        ssdp: Map<String, SsdpInfo>
     ): DeviceInfo {
         val hit = hosts.firstOrNull { it.ip == ip }
         val mac = arp[ip] ?: hit?.let { arp[it.ip] }
         val vendor = OuiVendorLookup.lookup(mac)
         val mdnsInfo = mdns[ip]
         val onvifInfo = onvif[ip]
+        val ssdpInfo = ssdp[ip]
         val hostname = mdnsInfo?.hostnames?.firstOrNull() ?: reverseDns(ip)
 
         val type = DeviceTypeGuesser.guess(
@@ -110,6 +117,7 @@ class NetworkScanner(private val context: Context) {
         if (arp[ip] != null) sources.add("arp")
         if (mdnsInfo != null) sources.add("mdns")
         if (onvifInfo != null) sources.add("onvif")
+        if (ssdpInfo != null) sources.add("ssdp")
         if (sources.isEmpty()) sources.add("mdns-only")
 
         return DeviceInfo(
@@ -141,7 +149,7 @@ class NetworkScanner(private val context: Context) {
     }
 }
 
-private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
+private data class Quint<A, B, C, D, E>(val a: A, val b: B, val c: C, val d: D, val e: E)
 
 /** awaitAll 的安全版本：单个失败返回 null 而非整体抛出。 */
 private suspend fun <T> List<kotlinx.coroutines.Deferred<T?>>.awaitAllSafe(): List<T?> =
