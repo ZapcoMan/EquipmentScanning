@@ -114,13 +114,9 @@ private fun WifiInfoCard(wifi: WifiNetworkInfo) {
             InfoLine("网关", wifi.gatewayIp ?: "—")
             InfoLine("子网 / 掩码", "${wifi.networkAddress ?: "—"}  ${wifi.subnetMask ?: "—"}")
             InfoLine("潜在主机数", "${wifi.hostCount} 台")
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
-                InfoLine("信号", "${wifi.signalDbm} dBm")
-                Spacer(Modifier.width(16.dp))
-                InfoLine("链路", "${wifi.linkSpeedMbps} Mbps")
-                Spacer(Modifier.width(16.dp))
-                InfoLine("信道", "${wifi.channel}  (${wifi.frequencyMhz} MHz)")
-            }
+            InfoLine("信号", "${wifi.signalDbm} dBm")
+            InfoLine("链路", "${wifi.linkSpeedMbps} Mbps")
+            InfoLine("信道", "${wifi.channel}  (${wifi.frequencyMhz} MHz)")
             wifi.bssid?.let { InfoLine("BSSID", it) }
         }
     }
