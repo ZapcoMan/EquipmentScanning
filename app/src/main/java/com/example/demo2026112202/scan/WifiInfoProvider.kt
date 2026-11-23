@@ -104,34 +104,33 @@ class WifiInfoProvider(private val context: Context) {
      * 用本机 IPv4 地址 + prefix 推算网络地址/广播地址/主机数。
      * 仅需 ACCESS_NETWORK_STATE，不依赖定位权限。
      */
-    private fun connectivityIpv4(): Ipv4Link? = try {
-        val cm = context.applicationContext
-            .getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-            ?: return null
-        val active = cm.activeNetwork ?: return null
-        val lp = cm.getLinkProperties(active) ?: return null
-        val la = lp.linkAddresses.firstOrNull { it.address is java.net.Inet4Address }
-            ?: return null
-        val bytes = (la.address as java.net.Inet4Address).address
-        if (bytes.size != 4) return null
-        val prefix = la.prefixLength
-        if (prefix <= 0 || prefix >= 32) return null
-        val ipLong = ((bytes[0].toLong() and 0xFF) shl 24) or
-                     ((bytes[1].toLong() and 0xFF) shl 16) or
-                     ((bytes[2].toLong() and 0xFF) shl 8) or
-                      (bytes[3].toLong() and 0xFF)
-        val maskLong = (0xFFFFFFFFL shl (32 - prefix)) and 0xFFFFFFFFL
-        val netLong = ipLong and maskLong
-        val bcastLong = ipLong or (maskLong.inv() and 0xFFFFFFFFL)
-        val hostCount = ((1L shl (32 - prefix)) - 2).coerceAtLeast(0L).toInt()
-        Ipv4Link(
-            ip = longToIpStr(ipLong),
-            mask = longToIpStr(maskLong),
-            network = longToIpStr(netLong),
-            broadcast = longToIpStr(bcastLong),
-            hostCount = hostCount
-        )
-    } catch (_: Exception) { null }
+    private fun connectivityIpv4(): Ipv4Link? {
+        return try {
+            val cm = context.applicationContext
+                .getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            val active = cm?.activeNetwork
+            val lp = active?.let { cm.getLinkProperties(it) }
+            val la = lp?.linkAddresses?.firstOrNull { it.address is java.net.Inet4Address }
+            val bytes = (la?.address as? java.net.Inet4Address)?.address
+            val prefix = la?.prefixLength ?: 0
+            if (bytes == null || bytes.size != 4 || prefix <= 0 || prefix >= 32) return null
+            val ipLong = ((bytes[0].toLong() and 0xFF) shl 24) or
+                         ((bytes[1].toLong() and 0xFF) shl 16) or
+                         ((bytes[2].toLong() and 0xFF) shl 8) or
+                          (bytes[3].toLong() and 0xFF)
+            val maskLong = (0xFFFFFFFFL shl (32 - prefix)) and 0xFFFFFFFFL
+            val netLong = ipLong and maskLong
+            val bcastLong = ipLong or (maskLong.inv() and 0xFFFFFFFFL)
+            val hostCount = ((1L shl (32 - prefix)) - 2).coerceAtLeast(0L).toInt()
+            Ipv4Link(
+                ip = longToIpStr(ipLong),
+                mask = longToIpStr(maskLong),
+                network = longToIpStr(netLong),
+                broadcast = longToIpStr(bcastLong),
+                hostCount = hostCount
+            )
+        } catch (_: Exception) { null }
+    }
 
     private fun longToIpStr(l: Long): String =
         "${(l shr 24) and 0xFF}.${(l shr 16) and 0xFF}.${(l shr 8) and 0xFF}.${l and 0xFF}"
