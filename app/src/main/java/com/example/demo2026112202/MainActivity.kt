@@ -34,16 +34,40 @@ class MainActivity : ComponentActivity() {
 
                 var hasLocation by remember { mutableStateOf(hasLocationPermission()) }
                 val permissionLauncher = rememberLauncherForActivityResult(
-                    ActivityResultContracts.RequestPermission()
-                ) { granted -> hasLocation = granted }
+                    ActivityResultContracts.RequestMultiplePermissions()
+                ) { result ->
+                    hasLocation = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                        result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+                    // 授权后立即开始扫描（无论是否精确授权，子网/主机发现均可进行）
+                    viewModel.scan()
+                }
+
+                val onScan = {
+                    if (hasLocation) {
+                        viewModel.scan()
+                    } else {
+                        // 未授权时先申请，授权回调里再触发扫描
+                        permissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    }
+                }
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     ScanScreen(
                         state = state,
                         hasLocationPermission = hasLocation,
-                        onScan = viewModel::scan,
+                        onScan = onScan,
                         onRequestPermission = {
-                            permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                            permissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
                         },
                         modifier = Modifier.padding(innerPadding)
                     )

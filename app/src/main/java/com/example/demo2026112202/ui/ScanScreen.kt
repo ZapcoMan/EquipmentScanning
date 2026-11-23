@@ -167,19 +167,19 @@ private fun ActionCard(
         Column(Modifier.padding(16.dp)) {
             if (!hasLocationPermission) {
                 Text(
-                    "扫描需要“精确位置”权限（Android 9+ 读取 WiFi 信息所必需）。",
+                    "未授予精确定位：扫描仍可进行，但可能读不到 SSID/BSSID（Android 9+ 限制）。如需完整 WiFi 信息可补授权限。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = onRequestPermission, modifier = Modifier.fillMaxWidth()) {
-                    Text("授予定位权限")
+                OutlinedButton(onClick = onRequestPermission, modifier = Modifier.fillMaxWidth()) {
+                    Text("补授定位权限（可选）")
                 }
+                Spacer(Modifier.height(8.dp))
             }
-            Spacer(Modifier.height(8.dp))
             Button(
                 onClick = onScan,
-                enabled = !state.isScanning && hasLocationPermission,
+                enabled = !state.isScanning,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("🔄")
