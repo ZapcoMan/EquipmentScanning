@@ -48,8 +48,8 @@ object HostDiscovery {
         }
     }
 
-    /** TCP 探测结果：被拒绝(RST)同样证明主机在线，只有超时才视为离线。 */
-    private enum class ProbeResult { OPEN, REFUSED, TIMEOUT, UNKNOWN }
+    /** TCP 探测结果：只有 "Connection refused"(RST) 才证明主机在线，其余失败一律离线。 */
+    private enum class ProbeResult { OPEN, REFUSED, TIMEOUT, UNREACHABLE }
 
     /** ICMP + TCP 探测判断存活，返回响应耗时(ms)。不输出端口。 */
     private fun probe(ip: String, timeoutMs: Int): HostHit? {
@@ -62,13 +62,14 @@ object HostDiscovery {
         if (reachable) return HostHit(ip, System.currentTimeMillis() - t0, "icmp")
 
         // ICMP 在安卓普通应用上常被禁用，回退 TCP 探测常见端口判断存活。
-        // 关键：端口关闭时主机会回 RST（ConnectException），同样证明主机在线；
-        // 只有连接超时（SocketTimeoutException）才视为离线。
+        // 只有连接成功(OPEN)或 "Connection refused"(REFUSED/RST) 才证明主机在线；
+        // 超时(TIMEOUT)、主机不可达(UNREACHABLE) 均视为离线——否则会把整个子网
+        // 里不存在的 IP 全部误判为在线（设备数暴涨）。
         for (p in ALIVE_PROBE_PORTS) {
             when (connectOnce(ip, p, minOf(timeoutMs, 400))) {
                 ProbeResult.OPEN, ProbeResult.REFUSED ->
                     return HostHit(ip, System.currentTimeMillis() - t0, "tcp")
-                ProbeResult.TIMEOUT, ProbeResult.UNKNOWN -> { /* 继续探测下一个端口 */ }
+                ProbeResult.TIMEOUT, ProbeResult.UNREACHABLE -> { /* 继续探测下一个端口 */ }
             }
         }
         return null
@@ -79,13 +80,18 @@ object HostDiscovery {
             Socket().use { s -> s.connect(InetSocketAddress(host, port), timeoutMs) }
             ProbeResult.OPEN
         } catch (e: ConnectException) {
-            // 连接被拒绝 = 主机回了 RST，端口关闭但主机在线
-            ProbeResult.REFUSED
+            // 关键：ConnectException 涵盖多种原因，不能一概视为在线。
+            //   "Connection refused"  = ECONNREFUSED，主机回了 RST → 在线
+            //   "Connection timed out"= ETIMEDOUT，SYN 重传超时 → 离线
+            //   "No route to host"    = EHOSTUNREACH → 离线
+            //   "Network is unreachable"= ENETUNREACH → 离线
+            // 只有 "refused" 才证明主机在线，其余一律离线。
+            val msg = e.message?.lowercase().orEmpty()
+            if (msg.contains("refused")) ProbeResult.REFUSED else ProbeResult.UNREACHABLE
         } catch (e: SocketTimeoutException) {
-            // 超时 = 主机离线或端口被过滤
             ProbeResult.TIMEOUT
         } catch (e: Exception) {
-            ProbeResult.UNKNOWN
+            ProbeResult.UNREACHABLE
         }
     }
 
