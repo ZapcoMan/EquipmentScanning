@@ -37,10 +37,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.demo2026112202.R
 import com.example.demo2026112202.scan.DeviceInfo
 import com.example.demo2026112202.scan.WifiNetworkInfo
 
@@ -92,7 +94,7 @@ private fun HeaderRow(state: ScanUiState) {
         Text("📶", fontSize = 24.sp)
         Spacer(Modifier.width(8.dp))
         Column {
-            Text("EquipmentScanning", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text(
                 state.phase,
                 style = MaterialTheme.typography.bodySmall,
