@@ -50,7 +50,7 @@ object MdnsDiscovery {
         withContext(Dispatchers.IO) {
             val wifi = context.applicationContext
                 .getSystemService(Context.WIFI_SERVICE) as? WifiManager
-            val lock = wifi?.createMulticastLock("netmap-mdns")?.apply {
+            val lock = wifi?.createMulticastLock("equipmentscanning-mdns")?.apply {
                 setReferenceCounted(false); acquire()
             }
             val byIp = mutableMapOf<String, MutableMdnsInfo>()

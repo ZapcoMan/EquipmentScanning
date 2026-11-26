@@ -39,7 +39,7 @@ object SsdpDiscovery {
         withContext(Dispatchers.IO) {
             val wifi = context.applicationContext
                 .getSystemService(Context.WIFI_SERVICE) as? WifiManager
-            val lock = wifi?.createMulticastLock("netmap-ssdp")?.apply {
+            val lock = wifi?.createMulticastLock("equipmentscanning-ssdp")?.apply {
                 setReferenceCounted(false); acquire()
             }
             val byIp = mutableMapOf<String, MutableSsdpInfo>()

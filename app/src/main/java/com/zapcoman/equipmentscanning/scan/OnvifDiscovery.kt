@@ -50,7 +50,7 @@ object OnvifDiscovery {
         withContext(Dispatchers.IO) {
             val wifi = context.applicationContext
                 .getSystemService(Context.WIFI_SERVICE) as? WifiManager
-            val lock = wifi?.createMulticastLock("netmap-onvif")?.apply {
+            val lock = wifi?.createMulticastLock("equipmentscanning-onvif")?.apply {
                 setReferenceCounted(false); acquire()
             }
             val byIp = mutableMapOf<String, MutableOnvif>()
