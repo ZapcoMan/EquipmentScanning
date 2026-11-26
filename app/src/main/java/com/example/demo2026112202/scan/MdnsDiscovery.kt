@@ -74,7 +74,7 @@ object MdnsDiscovery {
                         try {
                             socket.receive(pkt)
                             val srcIp = pkt.address.hostAddress ?: continue
-                            val parsed = parseResponse(pkt.data, pkt.length, srcIp)
+                            val parsed = parseResponse(pkt.data, pkt.length, srcIp) ?: continue
                             val info = byIp.getOrPut(srcIp) { MutableMdnsInfo() }
                             parsed.hostnames.forEach { info.hostnames.add(it) }
                             parsed.services.forEach { info.services.add(it) }
@@ -120,21 +120,25 @@ object MdnsDiscovery {
         return out.toByteArray()
     }
 
-    private data class Parsed(
+    internal data class Parsed(
         val hostnames: Set<String>,
         val services: Set<String>,
         val ports: Set<Int>,
         val aRecords: List<Pair<String, String>> // hostname -> IP
     )
 
-    private fun parseResponse(data: ByteArray, len: Int, srcIp: String): Parsed {
-        if (len < 12) return Parsed(emptySet(), emptySet(), emptySet(), emptyList())
+    /** 只解析 mDNS 响应报文；查询、非标准 opcode 或空记录一律返回 null，避免把无关包当成设备。 */
+    internal fun parseResponse(data: ByteArray, len: Int, srcIp: String): Parsed? {
+        if (len < 12) return null
         var p = 0
         fun u16(): Int {
             val v = ((data[p].toInt() and 0xFF) shl 8) or (data[p + 1].toInt() and 0xFF)
             p += 2; return v
         }
-        p = 2; u16()          // Flags
+        p = 2
+        val flags = u16()
+        if (flags and 0x8000 == 0) return null
+        if ((flags shr 11) and 0x0F != 0) return null
         val qd = u16(); val an = u16(); val ns = u16(); val ar = u16()
 
         // 跳过问题段
@@ -182,7 +186,7 @@ object MdnsDiscovery {
             p = rdataStart + rdlen
         }
         if (hostnames.isEmpty() && services.isEmpty() && ports.isEmpty() && aRecords.isEmpty()) {
-            hostnames.add(srcIp)
+            return null
         }
         return Parsed(hostnames.toSet(), services.toSet(), ports.toSet(), aRecords)
     }

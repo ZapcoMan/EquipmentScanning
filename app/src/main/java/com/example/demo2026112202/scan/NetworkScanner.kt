@@ -2,15 +2,19 @@ package com.example.demo2026112202.scan
 
 import android.content.Context
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 import java.net.InetAddress
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * 扫描协调器：组合 WiFi 信息、主机发现、ARP 表、OUI、mDNS、ONVIF、类型推断、可疑检测，
  * 产出完整的 ScanReport。不扫端口，专注设备发现（尤其针孔/IP 摄像头与可疑设备）。无需 root。
  */
 class NetworkScanner(private val context: Context) {
+
+    private var previousFingerprints: Map<String, ScanFingerprint> = emptyMap()
 
     /** 进度回调：(阶段, 已完成数, 总数)。 */
     suspend fun scan(onProgress: (String, Int, Int) -> Unit = { _, _, _ -> }): ScanReport {
@@ -34,12 +38,14 @@ class NetworkScanner(private val context: Context) {
             val hostsDeferred = async { HostDiscovery.discoverHosts(net, bcast, myIp) }
             val mdnsDeferred = async { MdnsDiscovery.discover(context) }
             val onvifDeferred = async { OnvifDiscovery.discover(context) }
-            val arpDeferred = async { ArpTableReader.read() }
             val ssdpDeferred = async { SsdpDiscovery.discover(context) }
-            Quint(
-                hostsDeferred.await(), mdnsDeferred.await(), arpDeferred.await(),
-                onvifDeferred.await(), ssdpDeferred.await()
-            )
+            val hosts = hostsDeferred.await()
+            val mdns = mdnsDeferred.await()
+            val onvif = onvifDeferred.await()
+            val ssdp = ssdpDeferred.await()
+            // 探测完成后再读 ARP，尽量利用刚被探测填充的邻居缓存。
+            val arp = ArpTableReader.read()
+            Quint(hosts, mdns, arp, onvif, ssdp)
         }
 
         if (arpMap.isEmpty()) {
@@ -48,56 +54,63 @@ class NetworkScanner(private val context: Context) {
 
         val allIps = LinkedHashSet<String>()
         hosts.forEach { allIps.add(it.ip) }
-        // 网关仅在 IP 有效时加入（排除 dhcpInfo 异常返回的 0.0.0.0）
-        wifi.gatewayIp?.takeIf { it.isNotBlank() && it != "0.0.0.0" }?.let { allIps.add(it) }
         mdnsMap.keys.forEach { allIps.add(it) }
         onvifMap.keys.forEach { allIps.add(it) }
         ssdpMap.keys.forEach { allIps.add(it) }
-        // 保留本机并加入列表，稍后标注为"本机"（便于对照哪台是自己）
+        wifi.gatewayIp?.takeIf { it.isNotBlank() && it != "0.0.0.0" }?.let { allIps.add(it) }
         myIp?.takeIf { it.isNotBlank() && it != "0.0.0.0" }?.let { allIps.add(it) }
 
-        val total = allIps.size.coerceAtLeast(1)
-        var done = 0
+        val candidates = allIps.map { ip ->
+            DeviceCandidate(
+                ip = ip,
+                hit = hosts.firstOrNull { it.ip == ip },
+                mac = arpMap[ip],
+                mdns = mdnsMap[ip],
+                onvif = onvifMap[ip],
+                ssdp = ssdpMap[ip],
+                isSelf = ip == myIp,
+                isGateway = ip == wifi.gatewayIp
+            )
+        }
+        val merged = DeviceMerge.merge(candidates)
+        val currentFingerprints = merged.associate { it.ip to ScanFingerprint.from(it) }
+        val stableIps = currentFingerprints
+            .filter { (ip, fingerprint) -> previousFingerprints[ip]?.matches(fingerprint) == true }
+            .keys
+
+        val total = merged.size.coerceAtLeast(1)
+        val done = AtomicInteger()
         val devices = coroutineScope {
-            allIps.map { ip ->
+            merged.map { candidate ->
                 async {
-                    val device = analyze(ip, hosts, mdnsMap, arpMap, onvifMap, ssdpMap, wifi.gatewayIp, myIp)
-                    done++
-                    onProgress("正在分析设备 $done/$total", done, total)
+                    val device = analyze(candidate, candidate.ip in stableIps)
+                    val finished = done.incrementAndGet()
+                    onProgress("正在分析设备 $finished/$total", finished, total)
                     device
                 }
-            }.awaitAllSafe()
+            }.awaitAll()
         }
+        previousFingerprints = currentFingerprints
 
         // 可疑设备优先，其次摄像头，再按可疑分数
-        val sorted = devices.filterNotNull()
-            .sortedWith(
-                compareByDescending<DeviceInfo> { it.isSuspicious }
-                    .thenByDescending { it.deviceType.contains("摄像头") || it.onvifTypes.isNotEmpty() }
-                    .thenByDescending { it.suspicionScore }
-                    .thenByDescending { it.sources.size }
-                    .thenBy { it.ip }
-            )
+        val sorted = devices.sortedWith(
+            compareByDescending<DeviceInfo> { it.isSuspicious }
+                .thenByDescending { it.deviceType.contains("摄像头") || it.onvifTypes.isNotEmpty() }
+                .thenByDescending { it.suspicionScore }
+                .thenByDescending { it.sources.size }
+                .thenBy { it.ip }
+        )
 
         return ScanReport(wifi, sorted, System.currentTimeMillis() - t0, warnings)
     }
 
-    private suspend fun analyze(
-        ip: String,
-        hosts: List<HostHit>,
-        mdns: Map<String, MdnsInfo>,
-        arp: Map<String, String>,
-        onvif: Map<String, OnvifDevice>,
-        ssdp: Map<String, SsdpInfo>,
-        gatewayIp: String?,
-        myIp: String?
-    ): DeviceInfo {
-        val hit = hosts.firstOrNull { it.ip == ip }
-        val mac = arp[ip] ?: hit?.let { arp[it.ip] }
+    private suspend fun analyze(candidate: DeviceCandidate, stable: Boolean): DeviceInfo {
+        val ip = candidate.ip
+        val mac = candidate.mac
         val vendor = OuiVendorLookup.lookup(mac)
-        val mdnsInfo = mdns[ip]
-        val onvifInfo = onvif[ip]
-        val ssdpInfo = ssdp[ip]
+        val mdnsInfo = candidate.mdns
+        val onvifInfo = candidate.onvif
+        val ssdpInfo = candidate.ssdp
         val hostname = mdnsInfo?.hostnames?.firstOrNull() ?: reverseDns(ip)
 
         val guessed = DeviceTypeGuesser.guess(
@@ -108,7 +121,7 @@ class NetworkScanner(private val context: Context) {
         )
         // 网关 IP 由 DHCP 确定，直接识别为路由器/网关，
         // 避免因 Android 10+ 拿不到邻居 MAC / 反向 DNS 失败而被兜底成"联网设备"。
-        val type = if (ip == gatewayIp && guessed.type == "联网设备") {
+        val type = if (candidate.isGateway && guessed.type == "联网设备") {
             DeviceTypeGuesser.Guess("网关/路由器", "🌐")
         } else {
             guessed
@@ -118,16 +131,18 @@ class NetworkScanner(private val context: Context) {
             mac, vendor, hostname,
             mdnsInfo?.services?.toList() ?: emptyList(),
             onvifInfo?.types ?: emptySet(),
-            type.type
+            type.type,
+            stable
         )
 
-        val sources = mutableSetOf<String>()
-        if (hit != null) sources.add(hit.source)
-        if (arp[ip] != null) sources.add("arp")
+        val sources = linkedSetOf<String>()
+        candidate.hit?.let { sources.add(it.source) }
+        if (mac != null) sources.add("arp")
         if (mdnsInfo != null) sources.add("mdns")
         if (onvifInfo != null) sources.add("onvif")
         if (ssdpInfo != null) sources.add("ssdp")
-        if (sources.isEmpty()) sources.add("mdns-only")
+        if (candidate.isSelf) sources.add("self")
+        if (candidate.isGateway) sources.add("dhcp")
 
         return DeviceInfo(
             ip = ip,
@@ -139,12 +154,14 @@ class NetworkScanner(private val context: Context) {
             mdnsServices = mdnsInfo?.services?.toList() ?: emptyList(),
             onvifTypes = onvifInfo?.types ?: emptySet(),
             onvifScopes = onvifInfo?.scopes ?: emptySet(),
-            responseTimeMs = hit?.rttMs,
+            responseTimeMs = candidate.hit?.rttMs,
             sources = sources,
             suspicionScore = suspicion.score,
-            suspicionReasons = suspicion.reasons.map { "${it.factor}(+${it.score})" },
+            suspicionReasons = suspicion.reasons.map {
+                if (it.score >= 0) "${it.factor}(+${it.score})" else "${it.factor}(${it.score})"
+            },
             isSuspicious = suspicion.isSuspicious,
-            isSelf = (ip == myIp)
+            isSelf = candidate.isSelf
         )
     }
 
@@ -160,7 +177,3 @@ class NetworkScanner(private val context: Context) {
 }
 
 private data class Quint<A, B, C, D, E>(val a: A, val b: B, val c: C, val d: D, val e: E)
-
-/** awaitAll 的安全版本：单个失败返回 null 而非整体抛出。 */
-private suspend fun <T> List<kotlinx.coroutines.Deferred<T?>>.awaitAllSafe(): List<T?> =
-    kotlinx.coroutines.awaitAll(*toTypedArray())

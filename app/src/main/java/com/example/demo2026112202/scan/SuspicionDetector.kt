@@ -14,6 +14,7 @@ data class SuspicionReport(
  *
  * 标准厂商摄像头靠 OUI+ONVIF 即可识别；自制摄像头（ESP32/树莓派 DIY、OUI 未知、
  * 不响应 ONVIF）识别不到，故综合 MAC 性质、厂商、服务响应、主机名等维度评分。
+ * 服务指纹明确或多次扫描特征稳定时降权，避免把随机 MAC 的正常手机误报成可疑。
  */
 object SuspicionDetector {
     private const val THRESHOLD = 4
@@ -24,7 +25,8 @@ object SuspicionDetector {
         hostname: String?,
         mdnsServices: List<String>,
         onvifTypes: Set<String>,
-        deviceType: String
+        deviceType: String,
+        stable: Boolean = false
     ): SuspicionReport {
         val reasons = mutableListOf<SuspicionReason>()
 
@@ -48,7 +50,19 @@ object SuspicionDetector {
             reasons.add(SuspicionReason("设备类型未明确归类", 1))
         }
 
-        val score = reasons.sumOf { it.score }
+        val services = mdnsServices.joinToString(" ").lowercase()
+        when {
+            onvifTypes.isNotEmpty() -> reasons.add(SuspicionReason("ONVIF 协议身份明确", -4))
+            STRONG_SERVICE_WORDS.any { services.contains(it) } ->
+                reasons.add(SuspicionReason("mDNS 服务指纹明确", -3))
+            WEAK_SERVICE_WORDS.any { services.contains(it) } ->
+                reasons.add(SuspicionReason("存在服务指纹", -1))
+        }
+        if (stable) {
+            reasons.add(SuspicionReason("多次扫描特征稳定", -2))
+        }
+
+        val score = reasons.sumOf { it.score }.coerceAtLeast(0)
         return SuspicionReport(score, reasons, score >= THRESHOLD)
     }
 
@@ -69,5 +83,16 @@ object SuspicionDetector {
     private val SUSPICIOUS_HOST_WORDS = listOf(
         "camera", "cam", "ipc", "hidden", "spy", "nvr", "dvr",
         "video", "surveillance", "pinhole", "ipcam"
+    )
+
+    private val STRONG_SERVICE_WORDS = listOf(
+        "airplay", "raop", "companion-link", "googlecast", "googlezone",
+        "ipp", "printer", "airprint", "sonos", "spotify-connect",
+        "homekit", "_hap", "hue", "esphome", "miio",
+        "_smb", "_ssh", "_rdp", "_vnc", "_nfs", "_afpovertcp"
+    )
+
+    private val WEAK_SERVICE_WORDS = listOf(
+        "_http", "_https", "_dlna", "_upnp", "_mqtt"
     )
 }

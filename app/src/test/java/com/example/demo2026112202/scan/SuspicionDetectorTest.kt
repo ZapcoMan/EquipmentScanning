@@ -58,4 +58,35 @@ class SuspicionDetectorTest {
         val r = SuspicionDetector.evaluate("28:57:BE:11:22:33", null, null, listOf("_http"), emptySet(), "联网设备")
         assertFalse(r.reasons.any { it.factor.contains("本地管理地址") })
     }
+
+    @Test
+    fun randomMacWithStrongService_notSuspicious() {
+        val r = SuspicionDetector.evaluate(
+            "02:00:00:00:00:01", null, null,
+            listOf("_companion-link._tcp.local"), emptySet(), "Apple 设备"
+        )
+        assertFalse(r.isSuspicious)
+        assertTrue(r.reasons.any { it.factor.contains("服务指纹明确") && it.score < 0 })
+    }
+
+    @Test
+    fun randomMacWithOnvif_notSuspicious() {
+        val r = SuspicionDetector.evaluate(
+            "02:00:00:00:00:01", null, null,
+            emptyList(), setOf("dn:IPCamera"), "IP 摄像头/针孔摄像头"
+        )
+        assertFalse(r.isSuspicious)
+    }
+
+    @Test
+    fun stableSilentRandomMac_scoreReduced() {
+        val unstable = SuspicionDetector.evaluate(
+            "02:00:00:00:00:01", null, null, emptyList(), emptySet(), "联网设备", stable = false
+        )
+        val stable = SuspicionDetector.evaluate(
+            "02:00:00:00:00:01", null, null, emptyList(), emptySet(), "联网设备", stable = true
+        )
+        assertTrue(stable.score < unstable.score)
+        assertTrue(stable.reasons.any { it.factor.contains("多次扫描特征稳定") && it.score < 0 })
+    }
 }

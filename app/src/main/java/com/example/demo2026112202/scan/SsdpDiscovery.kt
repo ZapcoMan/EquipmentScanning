@@ -61,6 +61,7 @@ object SsdpDiscovery {
                             socket.receive(pkt)
                             val srcIp = pkt.address.hostAddress ?: continue
                             val text = String(pkt.data, 0, pkt.length, Charsets.UTF_8)
+                            if (!isAliveResponse(text)) continue
                             val info = byIp.getOrPut(srcIp) { MutableSsdpInfo() }
                             parseHeaders(text).forEach { (key, value) ->
                                 when (key) {
@@ -92,6 +93,18 @@ object SsdpDiscovery {
             "MX: 2\r\n" +
             "ST: ssdp:all\r\n" +
             "\r\n").toByteArray(Charsets.UTF_8)
+
+    /** 只接受搜索响应或 alive 通告；byebye 表示设备离开，不能计入存在。 */
+    internal fun isAliveResponse(text: String): Boolean {
+        val firstLine = text.lineSequence().firstOrNull()?.trim()?.uppercase() ?: return false
+        return when {
+            firstLine.startsWith("HTTP/1.1 200") || firstLine.startsWith("HTTP/1.0 200") -> true
+            firstLine.startsWith("NOTIFY") ->
+                text.contains("ssdp:alive", ignoreCase = true) &&
+                    !text.contains("ssdp:byebye", ignoreCase = true)
+            else -> false
+        }
+    }
 
     /** 解析 HTTP 风格头部，返回 (小写头名 -> 值)，只保留 LOCATION/SERVER/USN。 */
     private fun parseHeaders(text: String): Map<String, String> {

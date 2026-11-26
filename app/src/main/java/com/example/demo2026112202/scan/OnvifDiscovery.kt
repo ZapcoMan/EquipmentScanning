@@ -12,7 +12,8 @@ import java.net.MulticastSocket
 data class OnvifDevice(
     val ip: String,
     val types: Set<String>,
-    val scopes: Set<String>
+    val scopes: Set<String>,
+    val endpointId: String? = null
 ) {
     /** 是否像摄像头/针孔摄像头。 */
     val looksLikeCamera: Boolean
@@ -28,7 +29,8 @@ data class OnvifDevice(
 private class MutableOnvif {
     val types = mutableSetOf<String>()
     val scopes = mutableSetOf<String>()
-    fun toDevice(ip: String) = OnvifDevice(ip, types.toSet(), scopes.toSet())
+    var endpointId: String? = null
+    fun toDevice(ip: String) = OnvifDevice(ip, types.toSet(), scopes.toSet(), endpointId)
 }
 
 /**
@@ -72,12 +74,13 @@ object OnvifDiscovery {
                         try {
                             socket.receive(pkt)
                             val srcIp = pkt.address.hostAddress ?: continue
-                            val parsed = parse(
-                                String(pkt.data, 0, pkt.length, Charsets.UTF_8)
-                            )
+                            val text = String(pkt.data, 0, pkt.length, Charsets.UTF_8)
+                            if (!isProbeMatch(text)) continue
+                            val parsed = parse(text)
                             val info = byIp.getOrPut(srcIp) { MutableOnvif() }
                             parsed.types.forEach { info.types.add(it) }
                             parsed.scopes.forEach { info.scopes.add(it) }
+                            if (info.endpointId == null) info.endpointId = extractEndpointId(text)
                         } catch (_: java.net.SocketTimeoutException) {
                             break
                         } catch (_: Exception) {
@@ -108,6 +111,15 @@ object OnvifDiscovery {
     }
 
     private data class Parsed(val types: Set<String>, val scopes: Set<String>)
+
+    /** 只接受 ProbeMatches 响应，忽略 Hello/Bye/他人 Probe，避免把离开事件或无关包当成设备。 */
+    internal fun isProbeMatch(xml: String): Boolean =
+        xml.contains("ProbeMatches", ignoreCase = true)
+
+    /** 提取 WS-Discovery 端点 UUID，用于跨 IP 合并同一台物理设备。 */
+    internal fun extractEndpointId(xml: String): String? =
+        Regex("<[^>]*Address[^>]*>\\s*urn:uuid:([0-9a-fA-F-]+)\\s*<", RegexOption.IGNORE_CASE)
+            .find(xml)?.groupValues?.get(1)?.lowercase()
 
     /** 从 ProbeMatches 响应提取 d:Types 与 d:Scopes（正则，容错）。 */
     private fun parse(xml: String): Parsed {
