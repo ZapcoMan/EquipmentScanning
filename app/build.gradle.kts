@@ -11,13 +11,13 @@ val keystoreProperties = Properties().apply {
 }
 
 android {
-    namespace = "com.example.demo2026112202"
+    namespace = "com.zapcoman.equipmentscanning"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.example.demo2026112202"
+        applicationId = "com.zapcoman.equipmentscanning"
         minSdk = 29
         targetSdk = 37
         versionCode = 12
