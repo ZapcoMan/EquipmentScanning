@@ -1,5 +1,22 @@
 # 更新日志
 
+## v1.3.0 — 2026-11-26
+
+工程标识全线统一为 EquipmentScanning：包名迁移、主题与工程名归一，并重写项目文档。
+
+### 变更
+- **包名迁移**：`applicationId` / `namespace` / Kotlin 包与源码目录由 `com.example.demo2026112202` 迁移至 `com.zapcoman.equipmentscanning`（与 GitHub / 官网域一致）
+- **主题与工程名**：`Theme.Demo2026112202` → `Theme.EquipmentScanning`，Compose 主题函数 `Demo2026112202Theme` → `EquipmentScanningTheme`，`rootProject.name` → `EquipmentScanning`
+- **文档重写**：README 按项目文档模板重构，补充技术栈、项目结构、测试统计、扫描协议与权限说明
+
+### 注意
+- 新包名与历史 v1.2.x（`com.example.demo2026112202`）属于**两个独立应用**：可共存安装，旧版无法覆盖升级，应用数据不迁移，升级前需先卸载旧版
+
+### 验证
+- `testDebugUnitTest`：10 个测试类 / 55 个用例全部通过
+- `assembleDebug` / `assembleRelease`（含 lintVital）构建成功
+- 产物校验：`package: name='com.zapcoman.equipmentscanning' versionCode='13' versionName='1.3.0'`，`application-label:'设备扫描器'`
+
 ## v1.2.3 — 2026-11-26
 
 收紧设备存在性确认与去重，加入服务指纹 / 稳定性降权，显著减少幽灵设备与随机 MAC 误报。
