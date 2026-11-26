@@ -1,5 +1,21 @@
 # 更新日志
 
+## v1.2.3 — 2026-11-26
+
+收紧设备存在性确认与去重，加入服务指纹 / 稳定性降权，显著减少幽灵设备与随机 MAC 误报。
+
+### 修复
+- 设备存在性收紧：只有主动探测（ICMP/TCP）或有效协议响应（mDNS/ONVIF/SSDP）才计入设备；ARP 缓存与 DHCP 配置不再单独作为存在证据，消除「幽灵设备」
+- 同一设备多路发现结果合并（新增 `DeviceMerge`）：按身份优先级 ONVIF 端点 UUID > SSDP USN UUID > 全局唯一 MAC > IP 去重，mDNS/ONVIF/SSDP 证据聚合到同一设备卡片
+- mDNS/ONVIF/SSDP 只接受有效响应报文，丢弃残缺/伪造多播
+- MAC 合并仅使用全局唯一地址（清除了本地管理位/组播位），避免把随机化 MAC 误判为同一设备
+
+### 变更
+- 可疑设备评分降权（新增 `ScanFingerprint`）：具备明确服务指纹（mDNS/ONVIF/SSDP 已识别服务）或连续扫描特征稳定的设备降低可疑度，减少随机 MAC 正常手机的误报
+
+### 测试
+- 新增 DeviceMergeTest、ScanFingerprintTest、MdnsDiscoveryTest、OnvifDiscoveryTest、SsdpDiscoveryTest，扩充 SuspicionDetectorTest（testDebugUnitTest 全部通过，本地 assembleRelease 构建通过）
+
 ## v1.2.2 — 2026-11-24
 
 应用桌面显示名改为中文短名，避免长英文名在桌面上被截断。
